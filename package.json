@@ -1,0 +1,91 @@
+{
+  "name": "quan-ly-hoa-don",
+  "version": "1.0.1",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "gan-o-mau": "node scripts/gan-o-mau.mjs",
+    "app": "vite build && electron .",
+    "dong-goi": "tsc --noEmit && vite build && electron-builder --win"
+  },
+  "keywords": [],
+  "author": "Kỹ thuật – An toàn",
+  "license": "ISC",
+  "description": "Quản lý hóa đơn, tờ trình và đề nghị thanh toán",
+  "devDependencies": {
+    "@tailwindcss/vite": "^4.3.3",
+    "@types/file-saver": "^2.0.7",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.1",
+    "dexie": "^4.4.6",
+    "docx-preview": "^0.4.1",
+    "docxtemplater": "^3.71.0",
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3",
+    "file-saver": "^2.0.5",
+    "jsdom": "^29.1.1",
+    "lodash": "^4.18.1",
+    "pdfjs-dist": "^6.3.289",
+    "pizzip": "^3.3.0",
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0",
+    "tailwindcss": "^4.3.3",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.2",
+    "vitest": "^5.0.3"
+  },
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "build": {
+    "appId": "vn.hoadon.quanly",
+    "productName": "Quản lý hóa đơn",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "dist/**",
+      "electron/**",
+      "package.json"
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        },
+        {
+          "target": "portable",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Quản lý hóa đơn",
+      "artifactName": "QuanLyHoaDon-Setup-${version}.exe",
+      "deleteAppDataOnUninstall": false,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico"
+    },
+    "asar": true,
+    "compression": "normal",
+    "portable": {
+      "artifactName": "QuanLyHoaDon-Portable-${version}.exe"
+    }
+  }
+}

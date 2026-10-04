@@ -1,0 +1,121 @@
+import { parseInvoiceXml } from './invoiceXml'
+import { parseInvoiceText } from './invoicePdf'
+import { emptyInvoice } from './model'
+import { newId, store } from './store'
+import type { Invoice, StoredFile } from './types'
+
+/** HỘ KINH DOANH NGUYỄN VĂN A -> HO KINH DOANH NGUYEN VAN A (kiểu tên tài khoản ngân hàng) */
+export function toAccountName(s: string): string {
+  return s
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/đ/g, 'd')
+    .replace(/Đ/g, 'D')
+    .toUpperCase()
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+/** Tên tài khoản: ưu tiên tên anh đã sửa tay lần trước cho cùng mã số thuế. */
+async function guessAccountName(inv: Invoice): Promise<string> {
+  if (inv.mstNguoiBan) {
+    for (const d of await store.listDossiers()) {
+      const hit = d.invoices.find((i) => i.mstNguoiBan === inv.mstNguoiBan && i.tenTaiKhoan)
+      if (hit) return hit.tenTaiKhoan
+    }
+  }
+  return toAccountName(inv.tenNguoiBan)
+}
+
+export async function saveUpload(file: File): Promise<StoredFile> {
+  const f: StoredFile = { id: newId(), name: file.name, type: file.type, size: file.size, data: file, addedAt: Date.now() }
+  await store.putFile(f)
+  return f
+}
+
+const isXml = (f: File) => /\.xml$/i.test(f.name) || f.type.includes('xml')
+const isPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
+
+/** Đọc PDF hóa đơn điện tử. Trả về null nếu không dò ra gì (vd PDF scan). */
+export async function readPdfInvoice(f: File) {
+  const { pdfToLines } = await import('./pdfText') // thư viện PDF nặng, chỉ tải khi cần
+  const parsed = parseInvoiceText(await pdfToLines(await f.arrayBuffer()))
+  if (parsed.found < 3) return null
+  const { found: _f, ...rest } = parsed
+  return rest
+}
+
+/** Chỉ điền vào các ô đang trống, không đè chữ anh đã sửa. */
+export function fillEmpty(inv: Invoice, src: Partial<Invoice>): Invoice {
+  const out = { ...inv } as Record<string, unknown>
+  for (const [k, v] of Object.entries(src)) {
+    const cur = out[k]
+    if (cur === '' || cur === 0 || (Array.isArray(cur) && cur.length === 0)) out[k] = v
+  }
+  return out as unknown as Invoice
+}
+
+/**
+ * Biến 1 lần up nhiều file thành các hóa đơn:
+ * - Mỗi file XML -> 1 hóa đơn (tự điền). PDF/ảnh trùng tên gốc với XML được gắn vào hóa đơn đó.
+ * - PDF lẻ -> 1 hóa đơn, tự dò thông tin từ chữ trong PDF (cần kiểm tra lại).
+ * - Ảnh lẻ -> 1 hóa đơn trống để nhập tay.
+ */
+export async function filesToInvoices(files: File[]): Promise<{ invoices: Invoice[]; errors: string[]; notes: string[] }> {
+  const errors: string[] = []
+  const notes: string[] = []
+  const invoices: Invoice[] = []
+  const byBase = new Map<string, Invoice>()
+  const base = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase()
+
+  for (const f of files.filter(isXml)) {
+    let inv = emptyInvoice()
+    try {
+      inv = { ...inv, ...parseInvoiceXml(await f.text()) }
+    } catch (e) {
+      errors.push(`${f.name}: ${(e as Error).message}`)
+    }
+    inv.fileIds.push((await saveUpload(f)).id)
+    invoices.push(inv)
+    byBase.set(base(f.name), inv)
+  }
+  for (const f of files.filter((x) => !isXml(x))) {
+    const stored = await saveUpload(f)
+    const match = byBase.get(base(f.name))
+    if (match) {
+      match.fileIds.push(stored.id)
+      continue
+    }
+    let inv = emptyInvoice()
+    inv.fileIds.push(stored.id)
+    if (isPdf(f)) {
+      try {
+        const p = await readPdfInvoice(f)
+        if (p) {
+          inv = fillEmpty(inv, p)
+          notes.push(`${f.name}: đã tự đọc từ PDF — anh soát lại số tiền và mã số thuế.`)
+        } else {
+          errors.push(`${f.name}: PDF không có chữ đọc được (có thể là bản scan)`)
+        }
+      } catch (e) {
+        errors.push(`${f.name}: không đọc được PDF (${(e as Error).message})`)
+      }
+    }
+    invoices.push(inv)
+  }
+  for (const inv of invoices) {
+    if (!inv.tenTaiKhoan && inv.tenNguoiBan) inv.tenTaiKhoan = await guessAccountName(inv)
+  }
+  return { invoices, errors, notes }
+}
+
+export { emptyDossier, emptyInvoice, normalizeDossier } from './model'
+
+/** Dọn file không thuộc hồ sơ nào (vd up dở rồi tắt trình duyệt). Chỉ xóa file cũ hơn 1 giờ để không đụng file đang up. */
+export async function cleanOrphanFiles(): Promise<number> {
+  const used = new Set((await store.listDossiers()).flatMap((d) => d.invoices.flatMap((i) => i.fileIds)))
+  const old = Date.now() - 3600_000
+  const orphans = (await store.listFiles()).filter((f) => !used.has(f.id) && f.addedAt < old)
+  for (const f of orphans) await store.deleteFile(f.id)
+  return orphans.length
+}

@@ -1,0 +1,13 @@
+node_modules
+dist
+release
+*.log
+.claude/
+
+# Dữ liệu thật (hóa đơn, mẫu gốc có thông tin cá nhân) — chỉ để trên máy, KHÔNG đưa lên GitHub công khai
+HD-Hung Yen/
+tests/fixtures/misa-*.json
+# Kiểm tra / script chứa số liệu hóa đơn thật để so khớp — chỉ chạy trên máy có thư mục HD-Hung Yen
+tests/mau-hung-yen.test.ts
+tests/pdf-misa.test.ts
+scripts/gan-o-mau.mjs
