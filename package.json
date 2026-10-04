@@ -9,7 +9,8 @@
     "typecheck": "tsc --noEmit",
     "gan-o-mau": "node scripts/gan-o-mau.mjs",
     "test:firebase": "firebase emulators:exec --only auth,firestore,storage --project demo-hoadon \"vitest run tests/firebase-store.test.ts\"",
-    "deploy:rules": "firebase deploy --only firestore:hoadon,storage:hoadon --project app-from-ai"
+    "deploy:rules": "firebase deploy --only firestore:hoadon,storage:hoadon --project app-from-ai",
+    "deploy": "npm run build && firebase deploy --only hosting:hoadon-npsc --project app-from-ai"
   },
   "keywords": [],
   "author": "Kỹ thuật – An toàn",

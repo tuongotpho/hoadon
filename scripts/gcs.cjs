@@ -14,7 +14,8 @@ const { configstore } = require(`${root}/firebase-tools/lib/configstore`)
   const token = typeof at === 'string' ? at : at.access_token
   const res = await fetch(url, {
     method,
-    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+    // QUOTA_PROJECT: một số API (vd Identity Toolkit) đòi ghi rõ dự án tính hạn mức
+    headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(process.env.QUOTA_PROJECT ? { 'x-goog-user-project': process.env.QUOTA_PROJECT } : {}) },
     body: body || undefined,
   })
   const text = await res.text()

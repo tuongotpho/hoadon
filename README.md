@@ -1,6 +1,6 @@
 # Quản lý hóa đơn — tờ trình & đề nghị thanh toán
 
-Web app **chỉ chạy online**: https://hoadon-npsc.vercel.app — đăng nhập Google, dữ liệu cất trên Firebase
+Web app **chỉ chạy online**: https://hoadon-npsc.web.app (Firebase Hosting, site `hoadon-npsc`) — bản phụ https://hoadon-npsc.vercel.app — đăng nhập Google, dữ liệu cất trên Firebase
 (dự án `app-from-ai`, database Firestore `hoadon`, kho file Storage `hoadon-npsc`). Mỗi tài khoản chỉ thấy dữ liệu của mình.
 
 ## Quy trình
@@ -32,6 +32,7 @@ Cài đặt → **Tải bản sao lưu (.zip)**: toàn bộ hồ sơ + file + m�
 npm run dev            # chạy thử trên máy: http://localhost:5180 (đăng nhập Google được ở localhost)
 npm test               # kiểm tra tự động
 npm run test:firebase  # kiểm tra trên Firebase giả lập (cần Java)
+npm run deploy         # build + đưa lên https://hoadon-npsc.web.app (CHỈ site hoadon-npsc)
 npm run deploy:rules   # đặt quy tắc bảo mật cho database "hoadon" + kho "hoadon-npsc" (CHỈ 2 chỗ này)
 ```
 Đẩy lên nhánh `main` → Vercel tự build (~1 phút). Trước khi đẩy: dò số liệu hóa đơn thật (kho GitHub đang công khai).
