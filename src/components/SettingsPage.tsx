@@ -112,6 +112,7 @@ export default function SettingsPage() {
   const [persisted, setPersisted] = useState<boolean | null>(null)
   const [usage, setUsage] = useState('')
   const [busy, setBusy] = useState(false)
+  const tren_may = store === localStore // chưa đăng nhập: dữ liệu chỉ ở máy này
 
   useEffect(() => setS(saved), [saved])
   useEffect(() => {
@@ -218,27 +219,41 @@ export default function SettingsPage() {
 
       <div className="card space-y-3">
         {store !== localStore && <ChuyenLenTaiKhoan />}
-        <h2 className="font-semibold text-slate-800">Sao lưu dữ liệu</h2>
+        <h2 className="font-semibold text-slate-800">Lưu trữ &amp; sao lưu</h2>
+        {tren_may ? (
+          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            💻 <b>Dữ liệu chỉ nằm trong {IS_APP ? 'app' : 'trình duyệt'} của máy này</b> — chưa lên mạng.
+            {!IS_APP && ' Đăng nhập Google (nút ở góc trên) để tự lưu lên mạng, dùng được ở mọi máy.'} Trong lúc chưa đăng nhập, nên tải bản sao lưu
+            định kỳ (tuần 1 lần) ra USB hoặc Google Drive.
+          </div>
+        ) : (
+          <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+            ☁ <b>Đang tự động lưu lên mạng</b> (Firebase) theo tài khoản đang đăng nhập — mỗi lần sửa là lưu ngay, không cần bấm gì. Hồ sơ ở
+            Firestore, file hóa đơn ở kho riêng. Mất mạng vẫn dùng được, có mạng lại tự đồng bộ. Đăng nhập cùng tài khoản ở máy khác là thấy đủ.
+          </div>
+        )}
         <p className="text-sm text-slate-600">
-          Dữ liệu chỉ nằm trong {IS_APP ? 'app' : 'trình duyệt'} của <b>máy này</b>. Nên sao lưu định kỳ (tuần 1 lần) ra USB hoặc Google Drive. File sao lưu gồm
-          toàn bộ hồ sơ, file hóa đơn và mẫu Word — nạp vào máy khác là dùng tiếp được.
+          {tren_may ? 'File sao lưu' : 'Muốn giữ thêm một bản riêng (phòng khi lỡ xóa nhầm), tải bản sao lưu về máy. File'} gồm toàn bộ hồ sơ, file hóa
+          đơn và mẫu Word — nạp vào máy/tài khoản khác là dùng tiếp được.
         </p>
         <div className="flex flex-wrap gap-2">
           <button className="btn-primary" onClick={backup} disabled={busy}>
-            ⬇ Tải bản sao lưu (.zip)
+            {busy ? 'Đang chuẩn bị…' : '⬇ Tải bản sao lưu (.zip)'}
           </button>
         </div>
         <FileDrop onFiles={restore} accept=".zip" multiple={false}>
-          Nạp lại bản sao lưu (.zip)
+          Nạp lại bản sao lưu (.zip){!tren_may && ' — vào tài khoản đang đăng nhập'}
         </FileDrop>
-        <div className="space-y-1 text-xs text-slate-500">
-          <div>Dung lượng đang dùng: {usage || '—'}</div>
-          <div>
-            Chống trình duyệt tự dọn dữ liệu:{' '}
-            {persisted == null ? '—' : persisted ? <b className="text-emerald-700">Đã bật</b> : <b className="text-amber-700">Chưa bật (càng cần sao lưu đều)</b>}
+        {tren_may && (
+          <div className="space-y-1 text-xs text-slate-500">
+            <div>Dung lượng đang dùng: {usage || '—'}</div>
+            <div>
+              Chống trình duyệt tự dọn dữ liệu:{' '}
+              {persisted == null ? '—' : persisted ? <b className="text-emerald-700">Đã bật</b> : <b className="text-amber-700">Chưa bật (càng cần sao lưu đều)</b>}
+            </div>
+            {!IS_APP && <div className="text-amber-700">⚠ Không dùng chế độ ẩn danh, không "Xóa dữ liệu duyệt web" của trang {location.host}.</div>}
           </div>
-          {!IS_APP && <div className="text-amber-700">⚠ Không dùng chế độ ẩn danh, không "Xóa dữ liệu duyệt web" của trang localhost:5180.</div>}
-        </div>
+        )}
       </div>
     </div>
   )
