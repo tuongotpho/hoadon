@@ -1,11 +1,42 @@
 import { useEffect, useState } from 'react'
-import { exportBackup, importBackup } from '../lib/backup'
+import { copyAll, exportBackup, importBackup } from '../lib/backup'
 import { today } from '../lib/dates'
 import { downloadBlob, IS_APP, useSettings } from '../lib/hooks'
-import { store } from '../lib/store'
+import { localStore, store } from '../lib/store'
 import type { Settings } from '../lib/types'
 import FileDrop from './FileDrop'
 import MoneyInput from './MoneyInput'
+
+/** Đưa hồ sơ đang nằm trên máy (nhập lúc chưa đăng nhập) lên tài khoản. Dữ liệu trên máy giữ nguyên. */
+function ChuyenLenTaiKhoan() {
+  const [n, setN] = useState<number | null>(null)
+  const [msg, setMsg] = useState('')
+  useEffect(() => {
+    localStore.listDossiers().then((l) => setN(l.length))
+  }, [])
+  if (!n) return null
+  async function chuyen() {
+    if (!confirm(`Đưa ${n} hồ sơ trên máy này (kèm file, mẫu và cài đặt) lên tài khoản? Hồ sơ trùng sẽ lấy bản trên máy.`)) return
+    setMsg('Đang đưa lên…')
+    try {
+      const r = await copyAll(localStore, store)
+      setMsg(`✓ Đã đưa lên ${r.dossiers} hồ sơ, ${r.files} file, ${r.templates} mẫu. Dữ liệu trên máy vẫn giữ nguyên.`)
+    } catch (e) {
+      setMsg('Lỗi: ' + (e as Error).message)
+    }
+  }
+  return (
+    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
+      <div>
+        Máy này còn <b>{n} hồ sơ</b> nhập lúc chưa đăng nhập.
+      </div>
+      <button className="btn-primary mt-2" onClick={chuyen} disabled={msg === 'Đang đưa lên…'}>
+        ☁ Đưa dữ liệu trên máy lên tài khoản
+      </button>
+      {msg && <div className="mt-1 text-xs">{msg}</div>}
+    </div>
+  )
+}
 
 /** Sửa danh sách lựa chọn: xóa từng mục, thêm mục mới, đổi thứ tự (mục đầu là mặc định). */
 function ListEditor({ label, items, onChange }: { label: string; items: string[]; onChange: (v: string[]) => void }) {
@@ -161,6 +192,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="card space-y-3">
+        {store !== localStore && <ChuyenLenTaiKhoan />}
         <h2 className="font-semibold text-slate-800">Sao lưu dữ liệu</h2>
         <p className="text-sm text-slate-600">
           Dữ liệu chỉ nằm trong {IS_APP ? 'app' : 'trình duyệt'} của <b>máy này</b>. Nên sao lưu định kỳ (tuần 1 lần) ra USB hoặc Google Drive. File sao lưu gồm
