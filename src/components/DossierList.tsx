@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react'
 import { dossiersToCsv } from '../lib/csv'
 import { fmtDate, today } from '../lib/dates'
+import { sapXep, XEP_MAC_DINH, type CachXep, type KieuXep } from '../lib/status'
 import { docLaiHoSoTrong, emptyDossier, filesToInvoices, laHoSoTrong } from '../lib/dossierOps'
 import { downloadBlob, useDossiers, useSettings } from '../lib/hooks'
 import { formatMoney } from '../lib/numberToWords'
@@ -26,6 +27,23 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
   const [chon, setChon] = useState<Set<string>>(new Set()) // hồ sơ đang được chọn (để xóa hàng loạt)
   const [dangLam, setDangLam] = useState('') // tiến độ xóa / đọc lại
   const [suaNgay, setSuaNgay] = useState(false)
+  // cách xếp: mặc định ngày HĐ mới nhất trên cùng; nhớ lựa chọn cho lần mở sau (chỉ trên máy này)
+  const [xep, setXepState] = useState<CachXep>(() => {
+    try {
+      return { ...XEP_MAC_DINH, ...JSON.parse(localStorage.getItem('hoadon-xep') ?? '{}') }
+    } catch {
+      return XEP_MAC_DINH
+    }
+  })
+  const setXep = (c: CachXep) => {
+    setXepState(c)
+    try {
+      localStorage.setItem('hoadon-xep', JSON.stringify(c))
+    } catch {}
+  }
+  // bấm tiêu đề cột: cùng cột thì đảo chiều, cột khác thì xếp giảm dần
+  const bamCot = (theo: KieuXep) => setXep(xep.theo === theo ? { theo, giam: !xep.giam } : { theo, giam: true })
+  const muiTen = (theo: KieuXep) => (xep.theo === theo ? (xep.giam ? ' ▼' : ' ▲') : '')
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -43,7 +61,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
 
   const shown = useMemo(() => {
     const kw = q.trim().toLowerCase()
-    return (list ?? []).filter((d) => {
+    const loc = (list ?? []).filter((d) => {
       const s = statusOf(d)
       if (filter === 'chuaXong' && s === 'daTt') return false
       if (filter === 'cu' && !d.hoSoCu) return false
@@ -54,7 +72,8 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
         .toLowerCase()
       return hay.includes(kw)
     })
-  }, [list, filter, q])
+    return sapXep(loc, xep)
+  }, [list, filter, q, xep])
 
   async function createNew(files: File[] = []) {
     setBusy(true)
@@ -169,6 +188,21 @@ Không lấy lại được (trừ khi có bản sao lưu .zip).`,
             </option>
           ))}
         </select>
+        <select
+          className="inp w-auto"
+          title="Thứ tự hiển thị"
+          value={`${xep.theo}-${xep.giam ? 'giam' : 'tang'}`}
+          onChange={(e) => {
+            const [theo, chieu] = e.target.value.split('-')
+            setXep({ theo: theo as KieuXep, giam: chieu === 'giam' })
+          }}
+        >
+          <option value="ngayHd-giam">Ngày HĐ: mới nhất trước</option>
+          <option value="ngayHd-tang">Ngày HĐ: cũ nhất trước</option>
+          <option value="tongTien-giam">Tiền: nhiều nhất trước</option>
+          <option value="tongTien-tang">Tiền: ít nhất trước</option>
+          <option value="capNhat-giam">Mới sửa gần đây</option>
+        </select>
         <div className="ml-auto flex gap-2">
           <button className="btn" onClick={() => downloadBlob(dossiersToCsv(shown), `So theo doi hoa don ${today()}.csv`)}>
             ⬇ Xuất Excel
@@ -235,8 +269,12 @@ Không lấy lại được (trừ khi có bản sao lưu .zip).`,
               </th>
               <th className="px-3 py-2">Nội dung</th>
               <th className="px-3 py-2">Hóa đơn</th>
-              <th className="px-3 py-2 text-right">Tổng tiền</th>
-              <th className="px-3 py-2">Ngày HĐ</th>
+              <th className="cursor-pointer select-none px-3 py-2 text-right hover:text-blue-700" title="Bấm để xếp theo tổng tiền" onClick={() => bamCot('tongTien')}>
+                Tổng tiền{muiTen('tongTien')}
+              </th>
+              <th className="cursor-pointer select-none px-3 py-2 hover:text-blue-700" title="Bấm để đảo chiều: mới nhất / cũ nhất" onClick={() => bamCot('ngayHd')}>
+                Ngày HĐ{muiTen('ngayHd')}
+              </th>
               <th className="px-3 py-2">Tờ trình</th>
               <th className="px-3 py-2">ĐNTT</th>
               <th className="px-3 py-2">Nộp KT</th>

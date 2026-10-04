@@ -127,3 +127,27 @@ export function waitingDays(d: Dossier): number | null {
   if (st === 'choLamHs') return daysBetween(firstInvoiceDate(d), t)
   return null
 }
+
+// ───────────── Sắp xếp danh sách hồ sơ ─────────────
+export type KieuXep = 'ngayHd' | 'tongTien' | 'capNhat'
+export interface CachXep {
+  theo: KieuXep
+  giam: boolean // true = mới nhất / nhiều nhất lên đầu
+}
+export const XEP_MAC_DINH: CachXep = { theo: 'ngayHd', giam: true }
+
+/** Xếp hồ sơ. Theo ngày HĐ: hồ sơ chưa có ngày luôn nằm cuối; cùng ngày thì số HĐ lớn hơn lên trước (khi giảm). */
+export function sapXep(list: Dossier[], c: CachXep): Dossier[] {
+  const dau = c.giam ? -1 : 1
+  const soHd = (d: Dossier) => Number(d.invoices[0]?.soHd) || 0
+  return [...list].sort((a, b) => {
+    if (c.theo === 'ngayHd') {
+      const na = firstInvoiceDate(a)
+      const nb = firstInvoiceDate(b)
+      if (!na !== !nb) return na ? -1 : 1 // chưa có ngày -> cuối
+      return na === nb ? dau * (soHd(a) - soHd(b)) : dau * na.localeCompare(nb)
+    }
+    if (c.theo === 'tongTien') return dau * (totalOf(a) - totalOf(b))
+    return dau * (a.updatedAt - b.updatedAt)
+  })
+}
