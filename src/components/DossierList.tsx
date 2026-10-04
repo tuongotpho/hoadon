@@ -183,7 +183,7 @@ Không lấy lại được (trừ khi có bản sao lưu .zip).`,
       {soTrong > 0 && (
         <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
           <span>
-            ⚠ Có <b>{soTrong} hồ sơ chưa có thông tin hóa đơn</b> (0 đ) nhưng file hóa đơn đã đính kèm — đọc lại từ file để điền tự động, không cần tải lên lại.
+            ⚠ Có <b>{soTrong} hồ sơ chưa có số tiền</b> (0 đ) nhưng file hóa đơn đã đính kèm — đọc lại từ file để điền tự động, không cần tải lên lại.
           </span>
           <button className="btn-primary !py-1" disabled={!!dangLam} onClick={docLai}>
             ↻ Đọc lại từ file đính kèm

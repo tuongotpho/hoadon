@@ -265,9 +265,9 @@ export async function nhapHoaDonCu(files: File[], onTienDo?: (xong: number, tong
 
 // ───────────── Đọc lại thông tin từ file đã đính kèm ─────────────
 
-/** Hồ sơ có file đính kèm nhưng chưa có thông tin hóa đơn (không số, 0 đ) — vd nhập lúc bộ đọc PDF lỗi. */
+/** Hồ sơ có file đính kèm nhưng CHƯA CÓ SỐ TIỀN (0 đ) — vd nhập lúc bộ đọc PDF lỗi, hoặc tổng tiền ở trang sau. */
 export function laHoSoTrong(d: Dossier): boolean {
-  return d.invoices.length > 0 && d.invoices.every((i) => !i.soHd && !i.tongTien && i.fileIds.length > 0)
+  return d.invoices.length > 0 && d.invoices.every((i) => !i.tongTien && i.fileIds.length > 0)
 }
 
 export interface KetQuaDocLai {
@@ -306,7 +306,7 @@ export async function docLaiHoSoTrong(onTienDo?: (xong: number, tong: number) =>
       const kq: KetQuaDocLai = { dossierId: d.id, tenFile, soHd: inv.soHd, tongTien: inv.tongTien }
       if (k && daCo.has(k)) kq.trungVoi = daCo.get(k)
       else if (k) daCo.set(k, d.id)
-      if (!inv.soHd && !inv.tongTien) kq.loi = 'Vẫn không đọc được (PDF scan / mẫu lạ) — mở hồ sơ để nhập tay'
+      if (!inv.tongTien) kq.loi = 'Vẫn không đọc được số tiền (PDF scan / mẫu lạ) — mở hồ sơ để nhập tay'
       else await store.saveDossier({ ...d, invoices: [inv, ...d.invoices.slice(1)], updatedAt: Date.now() })
       out.push(kq)
     } catch (e) {

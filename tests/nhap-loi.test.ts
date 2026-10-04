@@ -62,3 +62,12 @@ describe('đọc lại hồ sơ trống từ file đã đính kèm', () => {
     expect(laHoSoTrong(mem.d.get(trong.id)!)).toBe(false)
   })
 })
+
+describe('hồ sơ đã có số HĐ nhưng 0 đ (tổng tiền ở trang sau) cũng được đọc lại', () => {
+  it('laHoSoTrong', () => {
+    const d = { ...emptyDossier(), invoices: [{ ...emptyInvoice(), soHd: '182', fileIds: ['f'] }] }
+    expect(laHoSoTrong(d)).toBe(true)
+    expect(laHoSoTrong({ ...d, invoices: [{ ...d.invoices[0], tongTien: 9353540 }] })).toBe(false)
+    expect(laHoSoTrong({ ...d, invoices: [{ ...d.invoices[0], fileIds: [] }] })).toBe(false) // không có file thì không đọc lại được
+  })
+})
