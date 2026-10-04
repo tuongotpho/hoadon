@@ -127,6 +127,24 @@ try {
   check('Bấm "Đã thanh toán" ở bảng kết quả', nhap.sauBam === 'Đã thanh toán: 1.188.000 đ', nhap.sauBam)
   check('Danh sách có nhãn HĐ cũ, trạng thái Đã thanh toán', nhap.ds.some((r) => r.toLowerCase().includes('hđ cũ') && r.includes('Đã thanh toán')), nhap.ds.join(' || '))
 
+  // ── Sửa ngày hàng loạt: chọn tất cả -> ĐNTT theo ngày HĐ từng hồ sơ ──
+  const sua = await evaluate(`(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms))
+    document.querySelector('thead input[type=checkbox]').click(); await wait(300)
+    const btn = [...document.querySelectorAll('button')].find(b => b.innerText.includes('Sửa ngày cho'))
+    btn.click(); await wait(600)
+    const sel = [...document.querySelectorAll('.fixed select')][1] // hàng thứ 2: Ngày đề nghị thanh toán
+    sel.value = 'theoHd'; sel.dispatchEvent(new Event('change', { bubbles: true })); await wait(300)
+    const xem = document.querySelector('.fixed .bg-slate-50').innerText
+    ;[...document.querySelectorAll('.fixed button')].find(b => b.innerText.startsWith('Áp dụng')).click()
+    for (let k = 0; k < 40 && document.querySelector('.fixed select'); k++) await wait(250)
+    await wait(800)
+    const dong = [...document.querySelectorAll('tbody tr')].map(r => [...r.querySelectorAll('td')].map(td => td.innerText.trim()))
+    // cột: [ô chọn, nội dung, HĐ, tổng tiền, ngày HĐ, tờ trình, ĐNTT, ...]
+    return { xem, dong: dong.map(c => ({ ngayHd: c[4], dntt: c[6] })) }
+  })()`)
+  check('Sửa ngày hàng loạt: ĐNTT = ngày HĐ của từng hồ sơ', sua.dong.length >= 2 && sua.dong.every((d) => d.ngayHd && d.dntt === d.ngayHd), sua.xem.replace(/\s+/g, ' ') + ' || ' + JSON.stringify(sua.dong))
+
   ws.close()
   killApp()
   await sleep(2000)

@@ -12,6 +12,7 @@ import { store } from '../lib/store'
 import type { Dossier } from '../lib/types'
 import FileDrop from './FileDrop'
 import NhapHoaDonCu from './NhapHoaDonCu'
+import SuaNgayHangLoat from './SuaNgayHangLoat'
 import { banDoThayThe } from '../lib/thayThe'
 import { bao, hoi } from '../lib/dialog'
 
@@ -24,6 +25,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
   const [nhapCu, setNhapCu] = useState(false)
   const [chon, setChon] = useState<Set<string>>(new Set()) // hồ sơ đang được chọn (để xóa hàng loạt)
   const [dangLam, setDangLam] = useState('') // tiến độ xóa / đọc lại
+  const [suaNgay, setSuaNgay] = useState(false)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -206,13 +208,18 @@ Không lấy lại được (trừ khi có bản sao lưu .zip).`,
               <button className="text-xs hover:underline" onClick={() => setChon(new Set())}>
                 Bỏ chọn
               </button>
-              <button className="btn-danger ml-auto !bg-red-600 !py-1 !text-white" onClick={xoaDaChon}>
+              <button className="btn ml-auto !py-1" onClick={() => setSuaNgay(true)}>
+                📅 Sửa ngày cho {chon.size} hồ sơ
+              </button>
+              <button className="btn-danger !bg-red-600 !py-1 !text-white" onClick={xoaDaChon}>
                 🗑 Xóa {chon.size} hồ sơ đã chọn
               </button>
             </>
           )}
         </div>
       )}
+
+      {suaNgay && <SuaNgayHangLoat ids={[...chon]} onClose={() => setSuaNgay(false)} />}
 
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-sm">

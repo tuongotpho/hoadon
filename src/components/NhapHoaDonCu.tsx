@@ -4,6 +4,7 @@ import { nhapHoaDonCu, type KetQuaNhap } from '../lib/dossierOps'
 import { formatMoney } from '../lib/numberToWords'
 import { store } from '../lib/store'
 import FileDrop from './FileDrop'
+import SuaNgayHangLoat from './SuaNgayHangLoat'
 
 /**
  * Nhập nhiều hóa đơn cũ vào kho: chỉ cần số tiền + đã/chưa thanh toán.
@@ -13,6 +14,15 @@ export default function NhapHoaDonCu({ onClose, onOpen }: { onClose: () => void;
   const [tienDo, setTienDo] = useState<{ xong: number; tong: number } | null>(null)
   const [kq, setKq] = useState<KetQuaNhap[]>([])
   const [daTt, setDaTt] = useState<Record<string, string>>({}) // dossierId -> ngày thanh toán
+  const [chon, setChon] = useState<Set<string>>(new Set()) // hồ sơ tick chọn để sửa ngày
+  const [suaNgay, setSuaNgay] = useState(false)
+
+  // sau khi sửa ngày hàng loạt: đọc lại ngày thanh toán từ kho cho khớp bảng
+  async function napLaiTt() {
+    const m: Record<string, string> = {}
+    for (const k of kq) if (k.dossierId) m[k.dossierId] = (await store.getDossier(k.dossierId))?.ngayKeToanTt ?? ''
+    setDaTt(m)
+  }
 
   async function nhap(files: File[]) {
     setTienDo({ xong: 0, tong: files.length })
@@ -78,10 +88,23 @@ export default function NhapHoaDonCu({ onClose, onOpen }: { onClose: () => void;
                 ✓ Đánh dấu TẤT CẢ đã thanh toán
               </button>
             )}
+            {chon.size > 0 && (
+              <button className="btn" onClick={() => setSuaNgay(true)}>
+                📅 Sửa ngày cho {chon.size} hóa đơn đã chọn
+              </button>
+            )}
           </div>
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-xs text-slate-500">
               <tr>
+                <th className="w-8 px-2 py-1.5">
+                  <input
+                    type="checkbox"
+                    title="Chọn tất cả hóa đơn mới nhập"
+                    checked={moi.length > 0 && moi.every((k) => chon.has(k.dossierId!))}
+                    onChange={(e) => setChon(e.target.checked ? new Set(moi.map((k) => k.dossierId!)) : new Set())}
+                  />
+                </th>
                 <th className="px-2 py-1.5">File</th>
                 <th className="px-2 py-1.5">Ký hiệu / Số</th>
                 <th className="px-2 py-1.5">Ngày HĐ</th>
@@ -92,7 +115,21 @@ export default function NhapHoaDonCu({ onClose, onOpen }: { onClose: () => void;
             </thead>
             <tbody>
               {kq.map((k, i) => (
-                <tr key={i} className={`border-t border-slate-100 ${k.trung ? 'text-slate-400' : ''}`}>
+                <tr key={i} className={`border-t border-slate-100 ${k.trung ? 'text-slate-400' : ''} ${k.dossierId && chon.has(k.dossierId) ? 'bg-blue-50' : ''}`}>
+                  <td className="px-2 py-1.5">
+                    {k.dossierId && (
+                      <input
+                        type="checkbox"
+                        checked={chon.has(k.dossierId)}
+                        onChange={(e) => {
+                          const n = new Set(chon)
+                          if (e.target.checked) n.add(k.dossierId!)
+                          else n.delete(k.dossierId!)
+                          setChon(n)
+                        }}
+                      />
+                    )}
+                  </td>
                   <td className="max-w-[14rem] truncate px-2 py-1.5 text-xs" title={k.tenFile}>
                     {k.tenFile}
                     {k.loi && <div className="text-red-600">⚠ {k.loi}</div>}
@@ -143,6 +180,7 @@ export default function NhapHoaDonCu({ onClose, onOpen }: { onClose: () => void;
           </p>
         </div>
       )}
+      {suaNgay && <SuaNgayHangLoat ids={[...chon]} onClose={() => setSuaNgay(false)} onXong={napLaiTt} />}
     </div>
   )
 }

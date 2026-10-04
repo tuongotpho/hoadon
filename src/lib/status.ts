@@ -66,23 +66,30 @@ export function warningsOf(d: Dossier, s: Settings, map?: BanDoThayThe): string[
   return [...lq, ...canhBaoRieng(d, s)]
 }
 
+/** Ngày ngược thứ tự (chỉ xét các ngày đã điền) — áp dụng cho cả hóa đơn cũ. */
+function ngayNguoc(d: Dossier): string[] {
+  const w: string[] = []
+  const hd = firstInvoiceDate(d)
+  if (d.ngayToTrinh && hd && d.ngayToTrinh > hd) w.push('Ngày tờ trình đang SAU ngày hóa đơn')
+  if (d.ngayDntt && hd && d.ngayDntt < hd) w.push('Ngày ĐNTT đang TRƯỚC ngày hóa đơn')
+  if (d.ngayNopKeToan && d.ngayDntt && d.ngayNopKeToan < d.ngayDntt) w.push('Ngày nộp kế toán TRƯỚC ngày ĐNTT')
+  if (d.ngayKeToanTt && d.ngayNopKeToan && d.ngayKeToanTt < d.ngayNopKeToan) w.push('Ngày kế toán thanh toán TRƯỚC ngày nộp')
+  return w
+}
+
 function canhBaoRieng(d: Dossier, s: Settings): string[] {
   const w: string[] = []
   if (d.hoSoCu) {
-    // Hóa đơn cũ: không bắt tờ trình / nội dung / thông tin TK — chỉ báo lỗi số liệu và hàng cấm
+    // Hóa đơn cũ: không bắt tờ trình / nội dung / thông tin TK — chỉ báo lỗi số liệu, hàng cấm, ngày ngược
     const cam = timHangCam(d.invoices, s.tuKhoaCam)
     if (cam.length) w.push(`Có rượu/bia trên hóa đơn (${cam.map((c) => c.ten).join(', ')})`)
     for (const i of d.invoices) {
       if (!i.tongTien) w.push(`HĐ ${i.soHd || '?'}: chưa có tổng tiền`)
       if (!chuKhopSo(i)) w.push(`HĐ ${i.soHd || '?'}: số tiền bằng chữ trên hóa đơn KHÔNG khớp tổng tiền`)
     }
-    return w
+    return [...w, ...ngayNguoc(d)]
   }
-  const hd = firstInvoiceDate(d)
-  if (d.ngayToTrinh && hd && d.ngayToTrinh > hd) w.push('Ngày tờ trình đang SAU ngày hóa đơn')
-  if (d.ngayDntt && hd && d.ngayDntt < hd) w.push('Ngày ĐNTT đang TRƯỚC ngày hóa đơn')
-  if (d.ngayNopKeToan && d.ngayDntt && d.ngayNopKeToan < d.ngayDntt) w.push('Ngày nộp kế toán TRƯỚC ngày ĐNTT')
-  if (d.ngayKeToanTt && d.ngayNopKeToan && d.ngayKeToanTt < d.ngayNopKeToan) w.push('Ngày kế toán thanh toán TRƯỚC ngày nộp')
+  w.push(...ngayNguoc(d))
   const cam = timHangCam(d.invoices, s.tuKhoaCam)
   if (cam.length) w.unshift(`CÓ RƯỢU/BIA trên hóa đơn (${cam.map((c) => c.ten).join(', ')}) — quy định không được thanh toán`)
   const tong = totalOf(d)
