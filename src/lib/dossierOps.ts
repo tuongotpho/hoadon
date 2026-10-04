@@ -172,14 +172,6 @@ async function canhBaoThayThe(invoices: Invoice[]): Promise<string[]> {
 
 export { emptyDossier, emptyInvoice, normalizeDossier } from './model'
 
-/** Dọn file không thuộc hồ sơ nào (vd up dở rồi tắt trình duyệt). Chỉ xóa file cũ hơn 1 giờ để không đụng file đang up. */
-export async function cleanOrphanFiles(): Promise<number> {
-  const used = new Set((await store.listDossiers()).flatMap((d) => d.invoices.flatMap((i) => i.fileIds)))
-  const old = Date.now() - 3600_000
-  const orphans = (await store.listFiles()).filter((f) => !used.has(f.id) && f.addedAt < old)
-  for (const f of orphans) await store.deleteFile(f.id)
-  return orphans.length
-}
 
 // ───────────── Nhập hàng loạt hóa đơn cũ ─────────────
 

@@ -1,53 +1,37 @@
 # Quản lý hóa đơn — tờ trình & đề nghị thanh toán
 
-App chạy **offline trên máy**, mở bằng trình duyệt tại `http://localhost:5180`.
-
-## Cài đặt (bản dùng hằng ngày)
-Có 2 bản trong thư mục `release`:
-- **`QuanLyHoaDon-Portable-x.y.z.exe`** — 1 file, không cần cài, nháy đúp là chạy (mở chậm hơn vài giây vì tự giải nén).
-- **`QuanLyHoaDon-Setup-x.y.z.exe`** — bộ cài, có biểu tượng trên màn hình.
-
-Hai bản dùng **chung** dữ liệu trên cùng máy. Chạy bộ cài → biểu tượng "Quản lý hóa đơn" trên màn hình.
-- Windows báo "Windows protected your PC" → **More info → Run anyway** (bộ cài chưa có chữ ký số).
-- File Word xuất ra cất ở `Documents\Hoa don xuat` và tự mở bằng Word.
-- Dữ liệu ở `%APPDATA%\Quản lý hóa đơn`. Gỡ app **không** xóa dữ liệu.
-- Menu **Trợ giúp**: mở thư mục file đã xuất, thư mục dữ liệu, xem phiên bản.
-
-Đóng gói lại sau khi sửa code: `npm run dong-goi` (tắt `npm run dev` trước — máy chủ thử nghiệm khóa thư mục `release`).
-Kiểm tra bản đóng gói: `node scripts/kiem-tra-app.mjs "release\win-unpacked\Quản lý hóa đơn.exe"`.
-
-## Chạy bản thử trong trình duyệt (cho người sửa code)
-Nháy đúp **`Mo app hoa don.bat`** → `localhost:5180`. Dữ liệu ở đây **tách riêng** với bản cài đặt — chuyển qua lại bằng Sao lưu / Nạp lại.
+Web app **chỉ chạy online**: https://hoadon-npsc.vercel.app — đăng nhập Google, dữ liệu cất trên Firebase
+(dự án `app-from-ai`, database Firestore `hoadon`, kho file Storage `hoadon-npsc`). Mỗi tài khoản chỉ thấy dữ liệu của mình.
 
 ## Quy trình
-1. **Cài đặt** → điền họ tên, bộ phận, kính gửi... (làm 1 lần).
-2. **Hồ sơ thanh toán** → kéo thả file hóa đơn vào ô. File **XML** hoặc **PDF hóa đơn điện tử** tự điền số HĐ, ngày, người bán, MST, tài khoản, tiền (PDF: soát lại). Ảnh chụp/scan thì nhập tay.
-   Điền thêm: nội dung, đơn vị đến làm việc, **số tiền dự trù** (tờ trình), **thành phần tham gia**.
-3. Ngày tờ trình tự lùi trước ngày hóa đơn (mặc định 2 ngày làm việc, đổi ở Cài đặt).
-4. Bấm **Xuất cả 2 file Word**, mở bằng Word rồi in.
-5. Nộp kế toán / nhận tiền: bấm "Hôm nay" ở hồ sơ hoặc ngay trên danh sách.
+1. **Cài đặt** → danh sách người đề nghị, nhiệm vụ, quy tắc tiền (ngưỡng 5 triệu), từ khóa cấm (rượu/bia).
+2. **Hồ sơ thanh toán** → kéo thả file hóa đơn: **XML** hoặc **PDF hóa đơn điện tử** tự điền số, ngày, người bán, MST, tiền
+   (đã thử mẫu Viettel, MISA, VNPT, Bkav, hộ kinh doanh). Ảnh chụp / scan thì nhập tay.
+3. Dự trù tự động: HĐ < 5 triệu → 5 triệu, còn lại 20 triệu. HĐ < 5 triệu không in thông tin tài khoản người bán.
+4. **Xem trước** rồi **Xuất 2 file Word** (tờ trình + đề nghị thanh toán) để in.
+5. Theo dõi ngày: tờ trình, ĐNTT, nộp kế toán, kế toán thanh toán. Tick nhiều hồ sơ để **sửa ngày / xóa hàng loạt**.
+
+Cảnh báo: rượu/bia trên hóa đơn, hóa đơn **đã bị thay thế / điều chỉnh**, bản nháp "chưa cấp số", chữ ≠ số tiền, ngày ngược.
+
+## Hóa đơn cũ
+**📥 Nhập hóa đơn cũ**: thả nhiều file một lúc, mỗi hóa đơn thành 1 hồ sơ "HĐ cũ" (chỉ cần tiền + đã/chưa thanh toán).
+**Trùng** = cùng số + ngày xuất + MST đơn vị xuất → bỏ qua.
 
 ## Tổng hợp
-Trang **Tổng hợp**: lọc theo năm/tháng; tiền đã thanh toán / chờ kế toán / chưa nộp; bảng theo tháng, theo người bán; danh sách việc cần xử lý; bảng kê từng hóa đơn xuất Excel.
+Theo tháng, theo người bán, việc cần xử lý, bảng kê hóa đơn xuất Excel.
 
 ## Mẫu in
-Mẫu mặc định là **mẫu thật trong thư mục `HD-Hung Yen`**, đã gắn ô bằng `npm run gan-o-mau` (script `scripts/gan-o-mau.mjs`).
-Muốn dùng mẫu khác: trang **Mẫu in** → up .docx đã gõ các ô `{tong_tien}`, `{du_tru}`... Danh sách ô có ngay trên trang.
+Mẫu mặc định gắn ô từ mẫu thật thư mục `HD-Hung Yen` (chỉ trên máy, không đưa lên git) bằng `scripts/gan-o-mau.mjs`.
+Muốn dùng mẫu khác: trang **Mẫu in** → up .docx có các ô `{tong_tien}`, `{du_tru}`…
 
-## Dữ liệu & sao lưu
-- Dữ liệu nằm trong trình duyệt của **máy này**, gắn với địa chỉ `localhost:5180` (không đổi cổng).
-- **Cài đặt → Tải bản sao lưu (.zip)** mỗi tuần, cất ra USB/Drive.
-- Không dùng chế độ ẩn danh, không xóa dữ liệu duyệt web của trang này.
-
-## Chuyển sang online sau này
-Mọi chỗ đọc/ghi dữ liệu đi qua `src/lib/store/DataStore.ts`. Muốn lên mạng:
-1. Viết `FirebaseStore implements DataStore` (Firestore cho hồ sơ/cài đặt, Storage cho file và mẫu).
-2. Đổi 1 dòng trong `src/lib/store/index.ts`.
-3. Nạp file sao lưu .zip vào bản online để chuyển dữ liệu cũ sang.
+## Sao lưu
+Cài đặt → **Tải bản sao lưu (.zip)**: toàn bộ hồ sơ + file + mẫu, nạp lại được vào tài khoản bất kỳ.
 
 ## Cho người sửa code
 ```
-npm test          # 34 bài kiểm tra (gồm nghiệm thu so khớp với hồ sơ Hưng Yên thật)
-npm run dev       # chạy thử
-npm run gan-o-mau        # gắn lại ô vào 2 mẫu trong HD-Hung Yen -> public/mau/
+npm run dev            # chạy thử trên máy: http://localhost:5180 (đăng nhập Google được ở localhost)
+npm test               # kiểm tra tự động
+npm run test:firebase  # kiểm tra trên Firebase giả lập (cần Java)
+npm run deploy:rules   # đặt quy tắc bảo mật cho database "hoadon" + kho "hoadon-npsc" (CHỈ 2 chỗ này)
 ```
+Đẩy lên nhánh `main` → Vercel tự build (~1 phút). Trước khi đẩy: dò số liệu hóa đơn thật (kho GitHub đang công khai).

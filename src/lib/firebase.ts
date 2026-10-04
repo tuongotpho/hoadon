@@ -1,6 +1,6 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth'
-import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { getFirestore } from 'firebase/firestore'
 import { getStorage } from 'firebase/storage'
 import { FirebaseStore } from './store/FirebaseStore'
 
@@ -18,8 +18,8 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig)
 export const auth = getAuth(app)
 
-// Database riêng "hoadon" (dự án dùng chung với app khác). Có bộ nhớ đệm trên máy: mất mạng vẫn dùng được.
-const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }, 'hoadon')
+// Database riêng "hoadon" (dự án dùng chung với app khác). Chỉ chạy online — không cất bản đệm trên máy.
+const db = getFirestore(app, 'hoadon')
 
 // Kho file riêng "hoadon-npsc" (PDF/XML/ảnh hóa đơn) — quy tắc riêng trong storage.rules
 const storage = getStorage(app, 'gs://hoadon-npsc')

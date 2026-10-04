@@ -17,7 +17,8 @@ import SuaNgayHangLoat from './SuaNgayHangLoat'
 import { banDoThayThe } from '../lib/thayThe'
 import { bao, hoi } from '../lib/dialog'
 
-const ORDER: StatusKey[] = ['chuaHd', 'choLamHs', 'choNop', 'choKt', 'daTt']
+// Ô trạng thái ở đầu trang (bỏ "Chưa có hóa đơn" theo yêu cầu — hồ sơ chưa có HĐ vẫn hiện ở bộ lọc "Tất cả")
+const ORDER: StatusKey[] = ['choLamHs', 'choNop', 'choKt', 'daTt']
 
 export default function DossierList({ onOpen }: { onOpen: (id: string) => void }) {
   const list = useDossiers()
@@ -53,6 +54,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
     const m = Object.fromEntries(ORDER.map((k) => [k, { n: 0, tien: 0 }])) as Record<StatusKey, { n: number; tien: number }>
     for (const d of list ?? []) {
       const s = statusOf(d)
+      if (!m[s]) continue // trạng thái không có ô (chưa có hóa đơn)
       m[s].n++
       m[s].tien += totalOf(d)
     }
@@ -148,7 +150,7 @@ Không lấy lại được (trừ khi có bản sao lưu .zip).`,
   return (
     <div className="space-y-4">
       {/* Thẻ tổng hợp theo trạng thái */}
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {ORDER.map((k) => (
           <button
             key={k}

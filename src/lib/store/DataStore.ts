@@ -5,13 +5,11 @@ export type FileInfo = Omit<StoredFile, 'data'>
 /**
  * "Ổ cắm chuẩn" cho việc cất dữ liệu.
  *
- * Toàn bộ giao diện CHỈ gọi qua interface này, không gọi thẳng IndexedDB/Firebase.
- * - Hiện tại: LocalStore (IndexedDB trong trình duyệt, chạy offline).
- * - Sau này muốn online: viết FirebaseStore implements DataStore
- *   (Firestore cho dossiers/settings, Storage cho files/templates),
- *   rồi đổi 1 dòng trong store/index.ts. Không phải sửa giao diện.
+ * Toàn bộ giao diện CHỈ gọi qua interface này, không gọi thẳng Firebase.
+ * - Hiện tại: FirebaseStore (Firestore "hoadon" + Storage "hoadon-npsc"), chỉ chạy online.
+ * - Kiểm thử: các bài test cắm kho tạm trong bộ nhớ (MemStore) vào cùng ổ này.
  *
- * Quy ước để chuyển đổi dễ:
+ * Quy ước:
  * - Mọi id là chuỗi do app tự sinh (newId), không dựa vào id tự tăng của CSDL.
  * - Dossier chỉ chứa dữ liệu thuần (JSON được) — file gốc tách riêng, tham chiếu bằng fileIds.
  * - Mọi hàm đều async.

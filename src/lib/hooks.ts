@@ -29,9 +29,6 @@ export async function rememberOption(key: 'dsNguoiDeNghi' | 'dsNhiemVu', v: stri
   await store.saveSettings({ ...s, [key]: [...s[key], v] })
 }
 
-/** Đang chạy trong app cửa sổ riêng (bản cài đặt) hay trong trình duyệt */
-export const IS_APP = navigator.userAgent.includes('Electron')
-
 export const TEMPLATE_INFO: Record<TemplateKind, { ten: string; macDinh: string; tenFile: string }> = {
   toTrinh: { ten: 'Tờ trình xin chủ trương', macDinh: 'mau/to-trinh.docx', tenFile: 'To trinh' },
   dntt: { ten: 'Giấy đề nghị thanh toán', macDinh: 'mau/de-nghi-thanh-toan.docx', tenFile: 'De nghi thanh toan' },

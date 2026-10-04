@@ -5,10 +5,8 @@ import DossierList from './components/DossierList'
 import SettingsPage from './components/SettingsPage'
 import SummaryPage from './components/SummaryPage'
 import TemplatesPage from './components/TemplatesPage'
-import { copyAll } from './lib/backup'
-import { cleanOrphanFiles, taiBoDocPdf } from './lib/dossierOps'
-import { IS_APP } from './lib/hooks'
-import { localStore, setStore, store } from './lib/store'
+import { taiBoDocPdf } from './lib/dossierOps'
+import { CHUA_DANG_NHAP, setStore } from './lib/store'
 
 type Tab = 'hoSo' | 'tongHop' | 'mau' | 'caiDat'
 
@@ -19,35 +17,17 @@ const TABS: [Tab, string][] = [
   ['caiDat', 'Cài đặt & sao lưu'],
 ]
 
-const MODE_KEY = 'hoadon-che-do' // nhớ lựa chọn "dùng trên máy, không đăng nhập"
-const lsGet = (k: string) => {
-  try {
-    return localStorage.getItem(k)
-  } catch {
-    return null
-  }
-}
-const lsSet = (k: string, v: string | null) => {
-  try {
-    if (v == null) localStorage.removeItem(k)
-    else localStorage.setItem(k, v)
-  } catch {}
-}
+type Mode = { kind: 'checking' } | { kind: 'login' } | { kind: 'cloud'; user: User }
 
-type Mode = { kind: 'checking' } | { kind: 'login' } | { kind: 'local' } | { kind: 'cloud'; user: User }
-
-const fb = () => import('./lib/firebase') // Firebase chỉ tải khi dùng bản online
+const fb = () => import('./lib/firebase')
 
 export default function App() {
-  const [mode, setMode] = useState<Mode>({ kind: IS_APP ? 'local' : 'checking' })
+  const [mode, setMode] = useState<Mode>({ kind: 'checking' })
   const [loginErr, setLoginErr] = useState('')
 
   useEffect(() => {
-    // Xin trình duyệt không tự dọn dữ liệu của app khi ổ đầy
-    navigator.storage?.persist?.().catch(() => {})
     // tải sẵn bộ đọc PDF: web có cập nhật giữa chừng thì trang đang mở vẫn đọc được PDF
     taiBoDocPdf().catch(() => {})
-    if (IS_APP) return // bản cửa sổ (Electron): Google không cho đăng nhập trong app này -> dùng trên máy
     let unsub = () => {}
     fb().then(({ onUser, storeFor }) => {
       unsub = onUser((u) => {
@@ -55,8 +35,8 @@ export default function App() {
           setStore(storeFor(u))
           setMode({ kind: 'cloud', user: u })
         } else {
-          setStore(localStore)
-          setMode({ kind: lsGet(MODE_KEY) === 'local' ? 'local' : 'login' })
+          setStore(CHUA_DANG_NHAP)
+          setMode({ kind: 'login' }) // bắt buộc đăng nhập: dữ liệu luôn cất trên mạng
         }
       })
     })
@@ -67,7 +47,6 @@ export default function App() {
     setLoginErr('')
     try {
       await (await fb()).dangNhapGoogle()
-      lsSet(MODE_KEY, null)
     } catch (e) {
       const code = (e as { code?: string }).code ?? ''
       if (code.includes('popup-closed') || code.includes('cancelled')) return
@@ -87,7 +66,7 @@ export default function App() {
 
   if (mode.kind === 'login') {
     return (
-      <div className="flex min-h-screen items-center justify-center p-4">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-6 p-4">
         <div className="card w-full max-w-md space-y-4 text-center">
           <h1 className="flex items-center justify-center gap-2 text-xl font-bold text-slate-800"><img src="/icon-192.png" alt="" className="h-9 w-9" />Quản lý hóa đơn</h1>
           <p className="text-sm text-slate-600">
@@ -98,64 +77,24 @@ export default function App() {
             Đăng nhập bằng Google
           </button>
           {loginErr && <p className="rounded bg-red-50 p-2 text-left text-xs text-red-700">{loginErr}</p>}
-          <button
-            className="text-xs text-slate-500 hover:underline"
-            onClick={() => {
-              lsSet(MODE_KEY, 'local')
-              setMode({ kind: 'local' })
-            }}
-          >
-            Dùng trên máy này, không đăng nhập (dữ liệu chỉ ở máy này)
-          </button>
         </div>
+        <ChanTrang />
       </div>
     )
   }
 
-  return (
-    <Main
-      key={mode.kind === 'cloud' ? mode.user.uid : 'local'}
-      user={mode.kind === 'cloud' ? mode.user : null}
-      onLogin={() => {
-        lsSet(MODE_KEY, null)
-        setMode({ kind: 'login' })
-      }}
-    />
-  )
+  return <Main key={mode.user.uid} user={mode.user} />
 }
 
-function Main({ user, onLogin }: { user: User | null; onLogin: () => void }) {
+function Main({ user }: { user: User }) {
   const [tab, setTab] = useState<Tab>('hoSo')
   const [editingId, setEditingId] = useState<string | null>(null)
-  const [choChuyen, setChoChuyen] = useState(0) // số hồ sơ trên máy chưa đưa lên tài khoản
-  const [chuyen, setChuyen] = useState('')
-  const migratedKey = user ? `hoadon-da-chuyen-${user.uid}` : ''
-
-  useEffect(() => {
-    if (!user) {
-      cleanOrphanFiles().catch(() => {}) // chỉ dọn ở bản trên máy (bản online phải tải hết file mới dọn được)
-      return
-    }
-    if (lsGet(migratedKey)) return
-    localStore.listDossiers().then((l) => setChoChuyen(l.length))
-  }, [user, migratedKey])
-
-  async function chuyenLen() {
-    setChuyen('Đang đưa dữ liệu lên…')
-    try {
-      const r = await copyAll(localStore, store)
-      lsSet(migratedKey, '1')
-      setChoChuyen(0)
-      setChuyen(`✓ Đã đưa lên ${r.dossiers} hồ sơ, ${r.files} file, ${r.templates} mẫu. Dữ liệu cũ trên máy vẫn giữ nguyên.`)
-    } catch (e) {
-      setChuyen('Lỗi: ' + (e as Error).message)
-    }
-  }
-
   return (
     <div className="min-h-screen">
+      {/* Thanh đầu trang cố định khi cuộn */}
+      <div className="sticky top-0 z-40 shadow-sm">
       <header className="border-b border-slate-200 bg-white">
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 px-4 py-2.5 lg:px-6">
           <h1 className="flex items-center gap-2 text-lg font-bold text-slate-800"><img src="/favicon-32.png" alt="" className="h-7 w-7" />Quản lý hóa đơn</h1>
           <nav className="flex flex-wrap gap-1">
             {TABS.map(([k, label]) => (
@@ -174,56 +113,17 @@ function Main({ user, onLogin }: { user: User | null; onLogin: () => void }) {
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
-            {user ? (
-              <>
-                <TaiKhoan user={user} />
-                <button className="btn !py-1 !text-xs" onClick={() => fb().then((m) => m.dangXuat())}>
-                  Đăng xuất
-                </button>
-              </>
-            ) : (
-              <>
-                <span>💻 Dữ liệu chỉ ở máy này</span>
-                {!IS_APP && (
-                  <button className="btn !py-1 !text-xs" onClick={onLogin}>
-                    Đăng nhập để đồng bộ
-                  </button>
-                )}
-              </>
-            )}
+            <TaiKhoan user={user} />
+            <button className="btn !py-1 !text-xs" onClick={() => fb().then((m) => m.dangXuat())}>
+              Đăng xuất
+            </button>
           </div>
         </div>
       </header>
 
-      {(choChuyen > 0 || chuyen) && (
-        <div className="border-b border-blue-200 bg-blue-50">
-          <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-3 px-4 py-2 text-sm text-blue-900">
-            {chuyen ? (
-              <span>{chuyen}</span>
-            ) : (
-              <>
-                <span>
-                  Máy này còn <b>{choChuyen} hồ sơ</b> nhập từ trước (chưa đăng nhập). Đưa lên tài khoản để dùng ở mọi máy?
-                </span>
-                <button className="btn-primary !py-1" onClick={chuyenLen}>
-                  Đưa lên tài khoản
-                </button>
-                <button
-                  className="text-xs hover:underline"
-                  onClick={() => {
-                    lsSet(migratedKey, '1')
-                    setChoChuyen(0)
-                  }}
-                >
-                  Bỏ qua
-                </button>
-              </>
-            )}
-          </div>
-        </div>
-      )}
+      </div>
 
-      <main className="mx-auto max-w-7xl px-4 py-5">
+      <main className="px-4 py-5 lg:px-6">
         {tab === 'hoSo' &&
           (editingId ? (
             <DossierEditor id={editingId} onClose={() => setEditingId(null)} />
@@ -241,6 +141,7 @@ function Main({ user, onLogin }: { user: User | null; onLogin: () => void }) {
         {tab === 'mau' && <TemplatesPage />}
         {tab === 'caiDat' && <SettingsPage />}
       </main>
+      <ChanTrang />
     </div>
   )
 }
@@ -265,4 +166,8 @@ function TaiKhoan({ user }: { user: User }) {
       </span>
     </span>
   )
+}
+
+function ChanTrang() {
+  return <footer className="border-t border-slate-200 px-4 py-3 text-center text-xs text-slate-500 lg:px-6">© 2026 - August87 - 0982722036</footer>
 }

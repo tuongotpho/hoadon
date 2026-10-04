@@ -8,8 +8,6 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "gan-o-mau": "node scripts/gan-o-mau.mjs",
-    "app": "vite build && electron .",
-    "dong-goi": "tsc --noEmit && vite build && electron-builder --win",
     "test:firebase": "firebase emulators:exec --only auth,firestore,storage --project demo-hoadon \"vitest run tests/firebase-store.test.ts\"",
     "deploy:rules": "firebase deploy --only firestore:hoadon,storage:hoadon --project app-from-ai"
   },
@@ -24,11 +22,8 @@
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
-    "dexie": "^4.4.6",
     "docx-preview": "^0.4.1",
     "docxtemplater": "^3.71.0",
-    "electron": "^44.5.1",
-    "electron-builder": "^26.15.3",
     "file-saver": "^2.0.5",
     "firebase": "^12.19.0",
     "jsdom": "^29.1.1",
@@ -44,53 +39,5 @@
     "vitest": "^5.0.3"
   },
   "private": true,
-  "type": "module",
-  "main": "electron/main.cjs",
-  "build": {
-    "appId": "vn.hoadon.quanly",
-    "productName": "Quản lý hóa đơn",
-    "directories": {
-      "output": "release",
-      "buildResources": "build"
-    },
-    "files": [
-      "dist/**",
-      "electron/**",
-      "package.json"
-    ],
-    "win": {
-      "target": [
-        {
-          "target": "nsis",
-          "arch": [
-            "x64"
-          ]
-        },
-        {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
-        }
-      ],
-      "icon": "build/icon.ico"
-    },
-    "nsis": {
-      "oneClick": false,
-      "perMachine": false,
-      "allowToChangeInstallationDirectory": true,
-      "createDesktopShortcut": true,
-      "createStartMenuShortcut": true,
-      "shortcutName": "Quản lý hóa đơn",
-      "artifactName": "QuanLyHoaDon-Setup-${version}.exe",
-      "deleteAppDataOnUninstall": false,
-      "installerIcon": "build/icon.ico",
-      "uninstallerIcon": "build/icon.ico"
-    },
-    "asar": true,
-    "compression": "normal",
-    "portable": {
-      "artifactName": "QuanLyHoaDon-Portable-${version}.exe"
-    }
-  }
+  "type": "module"
 }

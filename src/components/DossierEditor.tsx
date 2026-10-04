@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { fmtDate, today } from '../lib/dates'
 import { fillTemplate } from '../lib/docx'
 import { emptyInvoice, filesToInvoices } from '../lib/dossierOps'
-import { downloadBlob, IS_APP, loadTemplate, rememberOption, safeFileName, TEMPLATE_INFO, useSettings } from '../lib/hooks'
+import { downloadBlob, loadTemplate, rememberOption, safeFileName, TEMPLATE_INFO, useSettings } from '../lib/hooks'
 import { moTaHangCam, timHangCam } from '../lib/hangCam'
 import { banDoThayThe, biLienQuan, moTaBiLienQuan, type BanDoThayThe } from '../lib/thayThe'
 import { canThongTinTk, duTruOf, duTruTuDong, tongTienChuOf, tongTienOf } from '../lib/rules'
@@ -371,9 +371,7 @@ Anh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`,
               </button>
             </div>
             <p className="text-xs text-slate-500">
-              {IS_APP
-                ? 'File cất vào Documents\Hoa don xuat và tự mở bằng Word. Kiểm tra lại rồi in.'
-                : 'File tải về thư mục Downloads. Mở bằng Word, kiểm tra lại rồi in.'}
+              File tải về thư mục Downloads. Mở bằng Word, kiểm tra lại rồi in.
             </p>
           </section>
 

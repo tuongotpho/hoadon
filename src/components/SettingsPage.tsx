@@ -1,44 +1,14 @@
 import { useEffect, useState } from 'react'
-import { copyAll, exportBackup, importBackup } from '../lib/backup'
+import { exportBackup, importBackup } from '../lib/backup'
 import { today } from '../lib/dates'
-import { downloadBlob, IS_APP, useSettings } from '../lib/hooks'
-import { localStore, store } from '../lib/store'
+import { downloadBlob, useSettings } from '../lib/hooks'
+import { store } from '../lib/store'
 import type { Settings } from '../lib/types'
 import FileDrop from './FileDrop'
 import MoneyInput from './MoneyInput'
 import { TU_KHOA_CAM_MAC_DINH } from '../lib/hangCam'
 import { bao, hoi } from '../lib/dialog'
 
-/** Đưa hồ sơ đang nằm trên máy (nhập lúc chưa đăng nhập) lên tài khoản. Dữ liệu trên máy giữ nguyên. */
-function ChuyenLenTaiKhoan() {
-  const [n, setN] = useState<number | null>(null)
-  const [msg, setMsg] = useState('')
-  useEffect(() => {
-    localStore.listDossiers().then((l) => setN(l.length))
-  }, [])
-  if (!n) return null
-  async function chuyen() {
-    if (!(await hoi(`Đưa ${n} hồ sơ trên máy này (kèm file, mẫu và cài đặt) lên tài khoản? Hồ sơ trùng sẽ lấy bản trên máy.`))) return
-    setMsg('Đang đưa lên…')
-    try {
-      const r = await copyAll(localStore, store)
-      setMsg(`✓ Đã đưa lên ${r.dossiers} hồ sơ, ${r.files} file, ${r.templates} mẫu. Dữ liệu trên máy vẫn giữ nguyên.`)
-    } catch (e) {
-      setMsg('Lỗi: ' + (e as Error).message)
-    }
-  }
-  return (
-    <div className="rounded-md border border-blue-200 bg-blue-50 p-3 text-sm text-blue-900">
-      <div>
-        Máy này còn <b>{n} hồ sơ</b> nhập lúc chưa đăng nhập.
-      </div>
-      <button className="btn-primary mt-2" onClick={chuyen} disabled={msg === 'Đang đưa lên…'}>
-        ☁ Đưa dữ liệu trên máy lên tài khoản
-      </button>
-      {msg && <div className="mt-1 text-xs">{msg}</div>}
-    </div>
-  )
-}
 
 /** Sửa danh sách lựa chọn: xóa từng mục, thêm mục mới, đổi thứ tự (mục đầu là mặc định). */
 function ListEditor({ label, items, onChange, gon = false }: { label: string; items: string[]; onChange: (v: string[]) => void; gon?: boolean }) {
@@ -109,16 +79,9 @@ export default function SettingsPage() {
   const saved = useSettings()
   const [s, setS] = useState<Settings>(saved)
   const [ok, setOk] = useState(false)
-  const [persisted, setPersisted] = useState<boolean | null>(null)
-  const [usage, setUsage] = useState('')
   const [busy, setBusy] = useState(false)
-  const tren_may = store === localStore // chưa đăng nhập: dữ liệu chỉ ở máy này
 
   useEffect(() => setS(saved), [saved])
-  useEffect(() => {
-    navigator.storage?.persisted?.().then(setPersisted).catch(() => {})
-    navigator.storage?.estimate?.().then((e) => setUsage(`${((e.usage ?? 0) / 1048576).toFixed(1)} MB`)).catch(() => {})
-  }, [])
 
   async function save() {
     await store.saveSettings(s)
@@ -218,23 +181,14 @@ export default function SettingsPage() {
       </div>
 
       <div className="card space-y-3">
-        {store !== localStore && <ChuyenLenTaiKhoan />}
         <h2 className="font-semibold text-slate-800">Lưu trữ &amp; sao lưu</h2>
-        {tren_may ? (
-          <div className="rounded-md border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            💻 <b>Dữ liệu chỉ nằm trong {IS_APP ? 'app' : 'trình duyệt'} của máy này</b> — chưa lên mạng.
-            {!IS_APP && ' Đăng nhập Google (nút ở góc trên) để tự lưu lên mạng, dùng được ở mọi máy.'} Trong lúc chưa đăng nhập, nên tải bản sao lưu
-            định kỳ (tuần 1 lần) ra USB hoặc Google Drive.
-          </div>
-        ) : (
-          <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
-            ☁ <b>Đang tự động lưu lên mạng</b> (Firebase) theo tài khoản đang đăng nhập — mỗi lần sửa là lưu ngay, không cần bấm gì. Hồ sơ ở
-            Firestore, file hóa đơn ở kho riêng. Mất mạng vẫn dùng được, có mạng lại tự đồng bộ. Đăng nhập cùng tài khoản ở máy khác là thấy đủ.
-          </div>
-        )}
+        <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
+          ☁ <b>Đang tự động lưu lên mạng</b> (Firebase) theo tài khoản đang đăng nhập — mỗi lần sửa là lưu ngay, không cần bấm gì. Hồ sơ ở
+          Firestore, file hóa đơn ở kho riêng. Mất mạng vẫn dùng được, có mạng lại tự đồng bộ. Đăng nhập cùng tài khoản ở máy khác là thấy đủ.
+        </div>
         <p className="text-sm text-slate-600">
-          {tren_may ? 'File sao lưu' : 'Muốn giữ thêm một bản riêng (phòng khi lỡ xóa nhầm), tải bản sao lưu về máy. File'} gồm toàn bộ hồ sơ, file hóa
-          đơn và mẫu Word — nạp vào máy/tài khoản khác là dùng tiếp được.
+          Muốn giữ thêm một bản riêng (phòng khi lỡ xóa nhầm), tải bản sao lưu về máy. File gồm toàn bộ hồ sơ, file hóa đơn và mẫu Word — nạp vào
+          tài khoản khác là dùng tiếp được.
         </p>
         <div className="flex flex-wrap gap-2">
           <button className="btn-primary" onClick={backup} disabled={busy}>
@@ -242,18 +196,8 @@ export default function SettingsPage() {
           </button>
         </div>
         <FileDrop onFiles={restore} accept=".zip" multiple={false}>
-          Nạp lại bản sao lưu (.zip){!tren_may && ' — vào tài khoản đang đăng nhập'}
+          Nạp lại bản sao lưu (.zip) — vào tài khoản đang đăng nhập
         </FileDrop>
-        {tren_may && (
-          <div className="space-y-1 text-xs text-slate-500">
-            <div>Dung lượng đang dùng: {usage || '—'}</div>
-            <div>
-              Chống trình duyệt tự dọn dữ liệu:{' '}
-              {persisted == null ? '—' : persisted ? <b className="text-emerald-700">Đã bật</b> : <b className="text-amber-700">Chưa bật (càng cần sao lưu đều)</b>}
-            </div>
-            {!IS_APP && <div className="text-amber-700">⚠ Không dùng chế độ ẩn danh, không "Xóa dữ liệu duyệt web" của trang {location.host}.</div>}
-          </div>
-        )}
       </div>
     </div>
   )
