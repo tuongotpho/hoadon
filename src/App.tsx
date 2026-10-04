@@ -174,7 +174,7 @@ function Main({ user, onLogin }: { user: User | null; onLogin: () => void }) {
           <div className="ml-auto flex items-center gap-2 text-xs text-slate-500">
             {user ? (
               <>
-                <span title="Dữ liệu cất trên mạng (Firebase), đồng bộ mọi máy">☁ {user.email}</span>
+                <TaiKhoan user={user} />
                 <button className="btn !py-1 !text-xs" onClick={() => fb().then((m) => m.dangXuat())}>
                   Đăng xuất
                 </button>
@@ -240,5 +240,27 @@ function Main({ user, onLogin }: { user: User | null; onLogin: () => void }) {
         {tab === 'caiDat' && <SettingsPage />}
       </main>
     </div>
+  )
+}
+
+/** Góc tài khoản: ảnh đại diện Google, tên, email (+ biểu tượng ☁ = đang lưu lên mạng). */
+function TaiKhoan({ user }: { user: User }) {
+  const [anhLoi, setAnhLoi] = useState(false)
+  const ten = user.displayName || user.email?.split('@')[0] || 'Tài khoản'
+  return (
+    <span className="flex items-center gap-2" title="Đang đăng nhập — dữ liệu tự lưu lên mạng (Firebase), đồng bộ mọi máy">
+      {user.photoURL && !anhLoi ? (
+        // ảnh Google: tắt referrer để khỏi bị chặn tải ảnh
+        <img src={user.photoURL} alt="" referrerPolicy="no-referrer" onError={() => setAnhLoi(true)} className="h-8 w-8 rounded-full border border-slate-200" />
+      ) : (
+        <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+          {ten.trim().split(/\s+/).pop()?.[0]?.toUpperCase()}
+        </span>
+      )}
+      <span className="flex flex-col leading-tight">
+        <span className="text-sm font-medium text-slate-800">{ten}</span>
+        <span className="text-[11px] text-slate-500">☁ {user.email}</span>
+      </span>
+    </span>
   )
 }
