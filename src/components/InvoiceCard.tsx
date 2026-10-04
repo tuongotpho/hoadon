@@ -4,6 +4,7 @@ import { fillEmpty, readPdfInvoice, saveUpload, toAccountName } from '../lib/dos
 import { parseInvoiceXml } from '../lib/invoiceXml'
 import { formatMoney, moneyInWords } from '../lib/numberToWords'
 import { timHangCam } from '../lib/hangCam'
+import { moTaBiLienQuan, moTaLienQuan, type BiLienQuan } from '../lib/thayThe'
 import { chuKhopSo } from '../lib/rules'
 import { store } from '../lib/store'
 import type { FileInfo } from '../lib/store'
@@ -20,10 +21,11 @@ interface Props {
   onRemove: () => void
   canTk: boolean // hồ sơ từ 5 triệu -> cần thông tin tài khoản
   tuKhoaCam: string[]
+  biLQ?: BiLienQuan // hóa đơn này đã bị hóa đơn khác thay thế / điều chỉnh
 }
 
 
-export default function InvoiceCard({ index, inv, onChange, onRemove, canTk, tuKhoaCam }: Props) {
+export default function InvoiceCard({ index, inv, onChange, onRemove, canTk, tuKhoaCam, biLQ }: Props) {
   const cam = timHangCam([inv], tuKhoaCam)
   const tenCam = new Set(cam.map((c) => c.ten))
   const [files, setFiles] = useState<FileInfo[]>([])
@@ -66,7 +68,15 @@ export default function InvoiceCard({ index, inv, onChange, onRemove, canTk, tuK
   const sumCheck = inv.tongTien && (inv.tienTruocThue || inv.tienThue) && Math.abs(inv.tienTruocThue + inv.tienThue - inv.tongTien) > 1
 
   return (
-    <div className={`rounded-lg border p-3 ${cam.length ? 'border-2 border-red-500 bg-red-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
+    <div className={`rounded-lg border p-3 ${cam.length || biLQ ? 'border-2 border-red-500 bg-red-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
+      {biLQ && (
+        <div className="mb-2 rounded-md bg-red-700 px-3 py-2 text-sm font-semibold text-white">⛔ {moTaBiLienQuan(inv, biLQ)}</div>
+      )}
+      {inv.hdLienQuan && (
+        <div className="mb-2 rounded-md border border-blue-300 bg-blue-50 px-3 py-1.5 text-sm text-blue-900">
+          🔁 Hóa đơn này {moTaLienQuan(inv.hdLienQuan).replace(/^T/, 't').replace(/^Đ/, 'đ')} — hóa đơn cũ đó không còn dùng để thanh toán.
+        </div>
+      )}
       {cam.length > 0 && (
         <div className="mb-2 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white">
           ⛔ Hóa đơn có rượu/bia — quy định không được thanh toán: {cam.map((c) => `"${c.ten}"`).join(', ')}

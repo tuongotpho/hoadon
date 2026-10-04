@@ -1,5 +1,6 @@
 import { parseInvoiceXml } from './invoiceXml'
 import { moTaHangCam, timHangCam } from './hangCam'
+import { banDoThayThe, biLienQuan, moTaBiLienQuan, moTaLienQuan } from './thayThe'
 import { parseInvoiceText } from './invoicePdf'
 import { emptyDossier, emptyInvoice } from './model'
 import { newId, store } from './store'
@@ -108,10 +109,31 @@ export async function filesToInvoices(files: File[]): Promise<{ invoices: Invoic
     if (!inv.tenTaiKhoan && inv.tenNguoiBan) inv.tenTaiKhoan = await guessAccountName(inv)
   }
   const cam = timHangCam(invoices, (await store.getSettings()).tuKhoaCam)
-  if (cam.length) notes.unshift(`⛔ HÓA ĐƠN CÓ RƯỢU/BIA — quy định không được thanh toán:
-${moTaHangCam(cam)}
-`)
+  if (cam.length) notes.unshift(`⛔ HÓA ĐƠN CÓ RƯỢU/BIA — quy định không được thanh toán:\n${moTaHangCam(cam)}\n`)
+  notes.unshift(...(await canhBaoThayThe(invoices)))
   return { invoices, errors, notes }
+}
+
+/** So hóa đơn mới với kho: nó thay thế hóa đơn nào đang có, hoặc chính nó đã bị thay thế chưa. */
+async function canhBaoThayThe(invoices: Invoice[]): Promise<string[]> {
+  if (!invoices.some((i) => i.soHd)) return []
+  const kho = await store.listDossiers()
+  const map = banDoThayThe(kho)
+  const out: string[] = []
+  for (const inv of invoices) {
+    const b = biLienQuan(inv, map)
+    if (b) out.push(`⛔ ${moTaBiLienQuan(inv, b)} (hóa đơn thay thế đã có trong kho).`)
+    const q = inv.hdLienQuan
+    if (q) {
+      const cu = kho.flatMap((d) => d.invoices).find((x) => biLienQuan(x, banDoThayThe([{ ...emptyDossier(), invoices: [inv] }])))
+      out.push(
+        cu
+          ? `🔁 HĐ ${inv.soHd} ${moTaLienQuan(q).toLowerCase()} — HĐ ${cu.soHd} đang có trong kho sẽ được đánh dấu ĐÃ BỊ ${q.loai === 'thayThe' ? 'THAY THẾ' : 'ĐIỀU CHỈNH'}.`
+          : `🔁 HĐ ${inv.soHd} ${moTaLienQuan(q).toLowerCase()} (hóa đơn cũ đó chưa có trong kho).`,
+      )
+    }
+  }
+  return out
 }
 
 export { emptyDossier, emptyInvoice, normalizeDossier } from './model'
@@ -184,6 +206,17 @@ export async function nhapHoaDonCu(files: File[], onTienDo?: (xong: number, tong
       out.push({ tenFile, soHd: '', kyHieu: '', ngayHd: '', nguoiBan: '', tongTien: 0, loi: (e as Error).message })
     }
     onTienDo?.(++xong, nhom.size)
+  }
+  // Ghi chú quan hệ thay thế sau khi đã nhập hết (hóa đơn cũ và hóa đơn thay thế có thể cùng một lô)
+  const map = banDoThayThe(await store.listDossiers())
+  for (const k of out) {
+    if (k.trung || !k.dossierId) continue
+    const d = await store.getDossier(k.dossierId)
+    const inv = d?.invoices[0]
+    if (!inv) continue
+    const b = biLienQuan(inv, map)
+    const them = [b && `⛔ ${b.loai === 'thayThe' ? 'ĐÃ BỊ THAY THẾ' : 'Đã bị điều chỉnh'} bởi HĐ ${b.boiSoHd}`, inv.hdLienQuan && `🔁 ${moTaLienQuan(inv.hdLienQuan)}`]
+    k.ghiChu = [k.ghiChu, ...them].filter(Boolean).join(' · ') || undefined
   }
   return out
 }

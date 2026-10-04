@@ -1,5 +1,6 @@
 import { addWorkingDays, daysBetween, today } from './dates'
 import { timHangCam } from './hangCam'
+import { biLienQuan, moTaBiLienQuan, type BanDoThayThe } from './thayThe'
 import { canThongTinTk, chuKhopSo, duTruOf, sumInvoices } from './rules'
 import type { Dossier, Settings } from './types'
 
@@ -53,8 +54,19 @@ export function suggestDnttDate(d: Dossier): string {
   return latestHd && latestHd > t ? latestHd : t
 }
 
-/** Các điểm bất thường cần anh để ý. */
-export function warningsOf(d: Dossier, s: Settings): string[] {
+/**
+ * Các điểm bất thường cần anh để ý.
+ * map (tùy chọn): bản đồ thay thế của cả kho — để báo hóa đơn ĐÃ BỊ THAY THẾ.
+ */
+export function warningsOf(d: Dossier, s: Settings, map?: BanDoThayThe): string[] {
+  const lq = d.invoices.flatMap((i) => {
+    const b = biLienQuan(i, map)
+    return b ? [`⛔ ${moTaBiLienQuan(i, b)}`] : []
+  })
+  return [...lq, ...canhBaoRieng(d, s)]
+}
+
+function canhBaoRieng(d: Dossier, s: Settings): string[] {
   const w: string[] = []
   if (d.hoSoCu) {
     // Hóa đơn cũ: không bắt tờ trình / nội dung / thông tin TK — chỉ báo lỗi số liệu và hàng cấm

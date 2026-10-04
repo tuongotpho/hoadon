@@ -4,7 +4,7 @@ import type { Dossier, Invoice } from './types'
 export function emptyInvoice(): Invoice {
   return {
     id: newId(), kyHieu: '', soHd: '', ngayHd: '', tenNguoiBan: '', mstNguoiBan: '', diaChiNguoiBan: '',
-    stkNguoiBan: '', nganHangNguoiBan: '', tenTaiKhoan: '', tienBangChu: '', tienTruocThue: 0, tienThue: 0, tongTien: 0, items: [],
+    stkNguoiBan: '', nganHangNguoiBan: '', tenTaiKhoan: '', tienBangChu: '', hdLienQuan: null, tienTruocThue: 0, tienThue: 0, tongTien: 0, items: [],
     fileIds: [],
   }
 }

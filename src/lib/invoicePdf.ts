@@ -1,4 +1,5 @@
 import type { ParsedInvoice } from './invoiceXml'
+import type { HdLienQuan } from './types'
 
 /**
  * Dò thông tin hóa đơn từ CHỮ trong file PDF (bản thể hiện của hóa đơn điện tử).
@@ -26,6 +27,28 @@ const UNITS = new Set(
     'cốc ly ấm đôi tháng m km tấn vé chuyến xuất cặp tô đ/c bàn mâm kiện cuộn tờ quyển')
     .split(' '),
 )
+
+/**
+ * Dòng "Thay thế cho hóa đơn Mẫu số 1, ký hiệu C26MPD, số 00000322, ngày 27 tháng 05 năm 2026"
+ * hoặc "Hóa đơn điều chỉnh cho hóa đơn ký hiệu 1C24TAA số 123 ngày 01/02/2024".
+ */
+export function lienQuanPdf(all: string): HdLienQuan | null {
+  const m = /(thay\s*thế|điều\s*chỉnh)\s+cho\s+(?:hóa|hoá)\s+đơn([^\n]{0,200}(?:\n[^\n]{0,120})?)/i.exec(all)
+  if (!m) return null
+  const t = m[2].replace(/\n/g, ' ')
+  const mau = /Mẫu\s*số\s*:?\s*(\d)/i.exec(t)?.[1] ?? ''
+  const kh = /ký\s*hiệu\s*:?\s*([0-9]?[A-Z][A-Z0-9]{4,7})/i.exec(t)?.[1]?.toUpperCase() ?? ''
+  // bỏ cụm "Mẫu số 1" trước, kẻo lấy nhầm "1" làm số hóa đơn
+  const so = /(?:^|[\s,(])số\s*:?\s*0*(\d{1,8})(?!\d)/i.exec(t.replace(/Mẫu\s*số\s*:?\s*\d+/gi, ''))?.[1] ?? ''
+  if (!so) return null
+  const d = /ngày\s*(\d{1,2})\s*tháng\s*(\d{1,2})\s*năm\s*(\d{4})/i.exec(t) ?? /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(t)
+  return {
+    loai: /thay/i.test(m[1]) ? 'thayThe' : 'dieuChinh',
+    kyHieu: /^\d/.test(kh) ? kh : mau + kh,
+    soHd: so,
+    ngayHd: d ? `${d[3]}-${d[2].padStart(2, '0')}-${d[1].padStart(2, '0')}` : '',
+  }
+}
 
 export function parseInvoiceText(lines: string[]): Partial<ParsedInvoice> & { found: number } {
   const all = lines.join('\n')
@@ -71,6 +94,7 @@ export function parseInvoiceText(lines: string[]): Partial<ParsedInvoice> & { fo
     r.tongTien = tong || congHang + tienThue
   }
   r.tienBangChu = first(all, /(?:Số tiền|Tổng tiền)[^:\n]*bằng chữ[^:\n]*:\s*(.+)/i)
+  r.hdLienQuan = lienQuanPdf(all)
 
   // Dòng hàng hóa:
   //   Viettel: "1 Mẹt gà đủ món Mẹt 5 1.900.000 9.500.000"

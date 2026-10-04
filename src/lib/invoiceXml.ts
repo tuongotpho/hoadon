@@ -1,4 +1,4 @@
-import type { Invoice, InvoiceItem } from './types'
+import type { HdLienQuan, Invoice, InvoiceItem } from './types'
 
 /**
  * Đọc file XML hóa đơn điện tử theo chuẩn Tổng cục Thuế (TT78/2021, NĐ123):
@@ -44,6 +44,21 @@ function normDate(s: string): string {
 }
 
 export class InvoiceXmlError extends Error {}
+
+/** TTHDLQuan: TCHDon 1 = thay thế, 2 = điều chỉnh; KHMSHDCLQuan + KHHDCLQuan + SHDCLQuan + NLHDCLQuan */
+function lienQuanXml(doc: Document): HdLienQuan | null {
+  const q = childByName(doc, 'TTHDLQuan')
+  if (!q) return null
+  const tc = text(q, 'TCHDon')
+  const so = text(q, 'SHDCLQuan')
+  if (!so || (tc !== '1' && tc !== '2')) return null
+  return {
+    loai: tc === '1' ? 'thayThe' : 'dieuChinh',
+    kyHieu: text(q, 'KHMSHDCLQuan') + text(q, 'KHHDCLQuan'),
+    soHd: String(Number(so) || so),
+    ngayHd: normDate(text(q, 'NLHDCLQuan')),
+  }
+}
 
 export function parseInvoiceXml(xml: string): ParsedInvoice {
   const doc = new DOMParser().parseFromString(xml, 'application/xml')
@@ -93,6 +108,7 @@ export function parseInvoiceXml(xml: string): ParsedInvoice {
     nganHangNguoiBan: text(nBan, 'TNHang'),
     tenTaiKhoan: '',
     tienBangChu: text(tToan, 'TgTTTBChu'),
+    hdLienQuan: lienQuanXml(doc),
     tienTruocThue,
     tienThue,
     tongTien,

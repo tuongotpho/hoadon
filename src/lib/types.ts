@@ -10,6 +10,14 @@ export interface InvoiceItem {
   thueSuat: string
 }
 
+// "Hóa đơn này thay thế (hoặc điều chỉnh) cho hóa đơn ký hiệu …, số …, ngày …"
+export interface HdLienQuan {
+  loai: 'thayThe' | 'dieuChinh'
+  kyHieu: string
+  soHd: string
+  ngayHd: string
+}
+
 // Một hóa đơn đỏ (hóa đơn GTGT)
 export interface Invoice {
   id: string
@@ -23,6 +31,7 @@ export interface Invoice {
   nganHangNguoiBan: string
   tenTaiKhoan: string // tên chủ tài khoản ngân hàng (không dấu, như trên sao kê)
   tienBangChu: string // dòng "Số tiền viết bằng chữ" in trên hóa đơn
+  hdLienQuan: HdLienQuan | null // hóa đơn này THAY THẾ / ĐIỀU CHỈNH cho hóa đơn nào
   tienTruocThue: number
   tienThue: number
   tongTien: number

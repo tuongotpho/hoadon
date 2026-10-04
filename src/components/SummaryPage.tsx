@@ -4,6 +4,7 @@ import { fmtDate, today } from '../lib/dates'
 import { downloadBlob, useDossiers, useSettings } from '../lib/hooks'
 import { formatMoney } from '../lib/numberToWords'
 import { STATUS_COLOR, STATUS_LABEL, waitingDays, warningsOf } from '../lib/status'
+import { banDoThayThe } from '../lib/thayThe'
 import { avgDurations, byMonth, bySeller, flattenInvoices, yearsOf } from '../lib/summary'
 
 const money = (n: number) => (n ? formatMoney(n) : '—')
@@ -63,14 +64,13 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
   const durations = useMemo(() => avgDurations([...new Set(rows.map((r) => r.d))]), [rows])
 
   // Việc cần xử lý: hồ sơ còn dở, có cảnh báo hoặc chờ lâu (không phụ thuộc bộ lọc)
-  const todo = useMemo(
-    () =>
-      (list ?? [])
-        .map((d) => ({ d, w: warningsOf(d, settings), wait: waitingDays(d) ?? 0 }))
-        .filter((x) => x.w.length > 0 || x.wait > 7)
-        .sort((a, b) => b.wait - a.wait),
-    [list, settings],
-  )
+  const todo = useMemo(() => {
+    const thayThe = banDoThayThe(list ?? []) // lập 1 lần cho cả kho
+    return (list ?? [])
+      .map((d) => ({ d, w: warningsOf(d, settings, thayThe), wait: waitingDays(d) ?? 0 }))
+      .filter((x) => x.w.length > 0 || x.wait > 7)
+      .sort((a, b) => b.wait - a.wait)
+  }, [list, settings])
 
   if (!list) return <p className="text-slate-500">Đang tải…</p>
 

@@ -12,6 +12,7 @@ import { store } from '../lib/store'
 import type { Dossier } from '../lib/types'
 import FileDrop from './FileDrop'
 import NhapHoaDonCu from './NhapHoaDonCu'
+import { banDoThayThe } from '../lib/thayThe'
 import { bao } from '../lib/dialog'
 
 const ORDER: StatusKey[] = ['chuaHd', 'choLamHs', 'choNop', 'choKt', 'daTt']
@@ -23,6 +24,8 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
   const [nhapCu, setNhapCu] = useState(false)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
+
+  const thayThe = useMemo(() => banDoThayThe(list ?? []), [list])
 
   const stats = useMemo(() => {
     const m = Object.fromEntries(ORDER.map((k) => [k, { n: 0, tien: 0 }])) as Record<StatusKey, { n: number; tien: number }>
@@ -159,7 +162,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
             )}
             {shown.map((d) => {
               const st = statusOf(d)
-              const w = warningsOf(d, settings)
+              const w = warningsOf(d, settings, thayThe)
               const wait = waitingDays(d)
               return (
                 <tr key={d.id} className="cursor-pointer border-t border-slate-100 hover:bg-blue-50/50" onClick={() => onOpen(d.id)}>

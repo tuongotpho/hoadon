@@ -4,6 +4,7 @@ import { fillTemplate } from '../lib/docx'
 import { emptyInvoice, filesToInvoices } from '../lib/dossierOps'
 import { downloadBlob, IS_APP, loadTemplate, rememberOption, safeFileName, TEMPLATE_INFO, useSettings } from '../lib/hooks'
 import { moTaHangCam, timHangCam } from '../lib/hangCam'
+import { banDoThayThe, biLienQuan, moTaBiLienQuan, type BanDoThayThe } from '../lib/thayThe'
 import { canThongTinTk, duTruOf, duTruTuDong, tongTienChuOf, tongTienOf } from '../lib/rules'
 import { formatMoney, moneyInWords } from '../lib/numberToWords'
 import {
@@ -33,6 +34,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
   const latest = useRef<Dossier | null>(null)
 
   const [goiY, setGoiY] = useState<{ doiTac: string[]; donVi: string[] }>({ doiTac: [], donVi: [] })
+  const [thayThe, setThayThe] = useState<BanDoThayThe>(new Map()) // hóa đơn nào trong kho đã bị thay thế
 
   useEffect(() => {
     store.getDossier(id).then((x) => setD(x ?? null))
@@ -40,6 +42,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
     store.listDossiers().then((all) => {
       const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))]
       setGoiY({ doiTac: uniq(all.map((x) => x.doiTac)), donVi: uniq(all.flatMap((x) => x.thanhPhan.map((t) => t.donVi))) })
+      setThayThe(banDoThayThe(all))
     })
   }, [id])
 
@@ -107,6 +110,18 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
   }
 
   async function exportDocs(kinds: TemplateKind[]) {
+    // Hóa đơn đã bị thay thế: không còn giá trị — bắt xác nhận
+    const biTT = d!.invoices.flatMap((i) => {
+      const b = biLienQuan(i, thayThe)
+      return b ? [moTaBiLienQuan(i, b)] : []
+    })
+    if (biTT.length) {
+      const ok = await hoi(`⛔ ${biTT.join('\n⛔ ')}\n\nAnh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`, {
+        okLabel: 'Vẫn xuất',
+        nguyHiem: true,
+      })
+      if (!ok) return
+    }
     // Quy định: không thanh toán rượu/bia — bắt xác nhận trước khi xuất
     const cam = timHangCam(d!.invoices, settings.tuKhoaCam)
     if (cam.length) {
@@ -147,7 +162,7 @@ Anh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`,
   }
 
   const st = statusOf(d)
-  const warnings = warningsOf(d, settings)
+  const warnings = warningsOf(d, settings, thayThe)
   const total = totalOf(d)
   const hd = firstInvoiceDate(d)
 
@@ -310,6 +325,7 @@ Anh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`,
                 onRemove={() => removeInvoice(i)}
                 canTk={canThongTinTk(d, settings)}
                 tuKhoaCam={settings.tuKhoaCam}
+                biLQ={biLienQuan(inv, thayThe)}
               />
             ))}
             <FileDrop onFiles={addInvoiceFiles} accept=".xml,.pdf,image/*">
@@ -380,6 +396,7 @@ Anh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`,
         <PreviewModal
           dossier={withDates(d, ['toTrinh', 'dntt'])}
           settings={settings}
+          thayThe={thayThe}
           initial={preview}
           onClose={() => setPreview(null)}
           onExport={(k) => exportDocs(k)}
