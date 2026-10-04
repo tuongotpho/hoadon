@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { dossiersToCsv } from '../lib/csv'
 import { fmtDate, today } from '../lib/dates'
-import { emptyDossier, filesToInvoices } from '../lib/dossierOps'
+import { docLaiHoSoTrong, emptyDossier, filesToInvoices, laHoSoTrong } from '../lib/dossierOps'
 import { downloadBlob, useDossiers, useSettings } from '../lib/hooks'
 import { formatMoney } from '../lib/numberToWords'
 import {
@@ -13,7 +13,7 @@ import type { Dossier } from '../lib/types'
 import FileDrop from './FileDrop'
 import NhapHoaDonCu from './NhapHoaDonCu'
 import { banDoThayThe } from '../lib/thayThe'
-import { bao } from '../lib/dialog'
+import { bao, hoi } from '../lib/dialog'
 
 const ORDER: StatusKey[] = ['chuaHd', 'choLamHs', 'choNop', 'choKt', 'daTt']
 
@@ -22,6 +22,8 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
   const settings = useSettings()
   const [filter, setFilter] = useState<StatusKey | 'all' | 'chuaXong' | 'cu'>('chuaXong')
   const [nhapCu, setNhapCu] = useState(false)
+  const [chon, setChon] = useState<Set<string>>(new Set()) // hồ sơ đang được chọn (để xóa hàng loạt)
+  const [dangLam, setDangLam] = useState('') // tiến độ xóa / đọc lại
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -75,6 +77,47 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
 
   async function quickSet(d: Dossier, field: 'ngayNopKeToan' | 'ngayKeToanTt') {
     await store.saveDossier({ ...d, [field]: today(), updatedAt: Date.now() })
+  }
+
+  const soTrong = (list ?? []).filter(laHoSoTrong).length
+
+  async function xoaDaChon() {
+    const ds = (list ?? []).filter((d) => chon.has(d.id))
+    const ok = await hoi(
+      `Xóa HẲN ${ds.length} hồ sơ đã chọn cùng file hóa đơn đính kèm?
+Tổng tiền: ${formatMoney(ds.reduce((a, d) => a + totalOf(d), 0))} đ
+
+Không lấy lại được (trừ khi có bản sao lưu .zip).`,
+      { okLabel: `Xóa ${ds.length} hồ sơ`, nguyHiem: true },
+    )
+    if (!ok) return
+    let n = 0
+    for (const d of ds) {
+      setDangLam(`Đang xóa ${++n}/${ds.length}…`)
+      await store.deleteDossier(d.id)
+    }
+    setChon(new Set())
+    setDangLam('')
+    void bao(`Đã xóa ${ds.length} hồ sơ.`)
+  }
+
+  async function docLai() {
+    try {
+      const kq = await docLaiHoSoTrong((x, t) => setDangLam(`Đang đọc lại ${x}/${t} hồ sơ…`))
+      setDangLam('')
+      const ok = kq.filter((k) => !k.loi)
+      const loi = kq.filter((k) => k.loi)
+      const trung = kq.filter((k) => k.trungVoi)
+      const dong = [`Đã đọc lại ${ok.length}/${kq.length} hồ sơ · ${formatMoney(ok.reduce((a, k) => a + k.tongTien, 0))} đ`]
+      if (trung.length) {
+        dong.push(`⚠ ${trung.length} hồ sơ TRÙNG (cùng số + ngày + MST) với hồ sơ đã có — xem và xóa bớt: ${trung.map((k) => 'HĐ ' + k.soHd).join(', ')}`)
+      }
+      if (loi.length) dong.push(`⚠ Chưa đọc được ${loi.length}:`, ...loi.map((k) => `• ${k.tenFile}: ${k.loi}`))
+      void bao(dong.join('\n'))
+    } catch (e) {
+      setDangLam('')
+      void bao((e as Error).message)
+    }
   }
 
   if (nhapCu) return <NhapHoaDonCu onClose={() => setNhapCu(false)} onOpen={onOpen} />
@@ -137,10 +180,52 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
         </div>
       </div>
 
+      {soTrong > 0 && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+          <span>
+            ⚠ Có <b>{soTrong} hồ sơ chưa có thông tin hóa đơn</b> (0 đ) nhưng file hóa đơn đã đính kèm — đọc lại từ file để điền tự động, không cần tải lên lại.
+          </span>
+          <button className="btn-primary !py-1" disabled={!!dangLam} onClick={docLai}>
+            ↻ Đọc lại từ file đính kèm
+          </button>
+          <button className="text-xs hover:underline" onClick={() => setChon(new Set((list ?? []).filter(laHoSoTrong).map((d) => d.id)))}>
+            Chọn hết các hồ sơ trống
+          </button>
+        </div>
+      )}
+
+      {(chon.size > 0 || dangLam) && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-blue-300 bg-blue-50 p-2.5 text-sm text-blue-900">
+          {dangLam ? (
+            <span className="font-medium">{dangLam}</span>
+          ) : (
+            <>
+              <span>
+                Đã chọn <b>{chon.size}</b> hồ sơ · {formatMoney((list ?? []).filter((d) => chon.has(d.id)).reduce((a, d) => a + totalOf(d), 0))} đ
+              </span>
+              <button className="text-xs hover:underline" onClick={() => setChon(new Set())}>
+                Bỏ chọn
+              </button>
+              <button className="btn-danger ml-auto !bg-red-600 !py-1 !text-white" onClick={xoaDaChon}>
+                🗑 Xóa {chon.size} hồ sơ đã chọn
+              </button>
+            </>
+          )}
+        </div>
+      )}
+
       <div className="overflow-x-auto rounded-lg border border-slate-200 bg-white">
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-xs text-slate-500">
             <tr>
+              <th className="w-8 px-3 py-2">
+                <input
+                  type="checkbox"
+                  title="Chọn tất cả hồ sơ đang hiển thị"
+                  checked={shown.length > 0 && shown.every((d) => chon.has(d.id))}
+                  onChange={(e) => setChon(e.target.checked ? new Set(shown.map((d) => d.id)) : new Set())}
+                />
+              </th>
               <th className="px-3 py-2">Nội dung</th>
               <th className="px-3 py-2">Hóa đơn</th>
               <th className="px-3 py-2 text-right">Tổng tiền</th>
@@ -155,7 +240,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
           <tbody>
             {shown.length === 0 && (
               <tr>
-                <td colSpan={9} className="px-3 py-8 text-center text-slate-400">
+                <td colSpan={10} className="px-3 py-8 text-center text-slate-400">
                   {list.length === 0 ? 'Chưa có hồ sơ nào. Kéo thả file hóa đơn vào ô phía trên để bắt đầu.' : 'Không có hồ sơ khớp bộ lọc.'}
                 </td>
               </tr>
@@ -165,7 +250,19 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
               const w = warningsOf(d, settings, thayThe)
               const wait = waitingDays(d)
               return (
-                <tr key={d.id} className="cursor-pointer border-t border-slate-100 hover:bg-blue-50/50" onClick={() => onOpen(d.id)}>
+                <tr key={d.id} className={`cursor-pointer border-t border-slate-100 hover:bg-blue-50/50 ${chon.has(d.id) ? 'bg-blue-50' : ''}`} onClick={() => onOpen(d.id)}>
+                  <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      checked={chon.has(d.id)}
+                      onChange={(e) => {
+                        const n = new Set(chon)
+                        if (e.target.checked) n.add(d.id)
+                        else n.delete(d.id)
+                        setChon(n)
+                      }}
+                    />
+                  </td>
                   <td className="max-w-xs px-3 py-2">
                     <div className="truncate font-medium text-slate-800">
                       {d.hoSoCu && <span className="mr-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">HĐ cũ</span>}

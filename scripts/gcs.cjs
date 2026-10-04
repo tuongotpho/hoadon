@@ -17,7 +17,8 @@ const { configstore } = require(`${root}/firebase-tools/lib/configstore`)
     headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
     body: body || undefined,
   })
-  console.log(res.status, (await res.text()).slice(0, 3000))
+  const text = await res.text()
+  console.log(res.status, process.env.FULL ? text : text.slice(0, 3000)) // FULL=1: in đủ
 })().catch((e) => {
   console.error('LOI:', e.message)
   process.exit(1)

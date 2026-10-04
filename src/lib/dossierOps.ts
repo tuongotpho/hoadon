@@ -4,7 +4,7 @@ import { banDoThayThe, biLienQuan, moTaBiLienQuan, moTaLienQuan } from './thayTh
 import { laBanNhap, parseInvoiceText } from './invoicePdf'
 import { emptyDossier, emptyInvoice } from './model'
 import { newId, store } from './store'
-import type { Invoice, StoredFile } from './types'
+import type { Dossier, Invoice, StoredFile } from './types'
 
 /** HỘ KINH DOANH NGUYỄN VĂN A -> HO KINH DOANH NGUYEN VAN A (kiểu tên tài khoản ngân hàng) */
 export function toAccountName(s: string): string {
@@ -46,8 +46,24 @@ export class BanNhapError extends Error {
   }
 }
 
+/** Trang đang mở là bản cũ, web vừa có bản mới -> tệp phần mềm cũ không còn trên mạng. */
+export class AppCuError extends Error {
+  constructor() {
+    super('App vừa có bản cập nhật trên mạng — bấm "Tải lại trang" (hoặc F5) rồi làm lại. Chưa có gì được lưu.')
+  }
+}
+
+/** Tải phần đọc PDF (nặng). Gọi sẵn khi mở app để không bị lỡ khi web cập nhật giữa chừng. */
+export async function taiBoDocPdf() {
+  try {
+    return await import('./pdfText')
+  } catch {
+    throw new AppCuError()
+  }
+}
+
 export async function readPdfInvoice(f: File) {
-  const { pdfToLines } = await import('./pdfText') // thư viện PDF nặng, chỉ tải khi cần
+  const { pdfToLines } = await taiBoDocPdf() // thư viện PDF nặng, chỉ tải khi cần
   const lines = await pdfToLines(await f.arrayBuffer())
   if (laBanNhap(lines)) throw new BanNhapError()
   const parsed = parseInvoiceText(lines)
@@ -109,6 +125,10 @@ export async function filesToInvoices(files: File[]): Promise<{ invoices: Invoic
           errors.push(`${f.name}: PDF không có chữ đọc được (có thể là bản scan)`)
         }
       } catch (e) {
+        if (e instanceof AppCuError) {
+          await store.deleteFile(stored.id)
+          throw e // dừng hẳn, không tạo hồ sơ trống
+        }
         if (e instanceof BanNhapError) {
           errors.push(`${f.name}: ${e.message}`)
           await store.deleteFile(stored.id) // không giữ file nháp
@@ -209,7 +229,10 @@ export async function nhapHoaDonCu(files: File[], onTienDo?: (xong: number, tong
           ghiChu: notes.filter((n) => n.includes('RƯỢU')).map(() => 'Có rượu/bia').join('') || undefined,
         }
         const k = khoaHoaDon(inv)
-        if (k && daCo.has(k)) {
+        if (!inv.soHd && !inv.tongTien && errors.length && g.every((f) => !/\.(jpe?g|png)$/i.test(f.name))) {
+          // PDF/XML không đọc được -> KHÔNG tạo hồ sơ trống, bỏ file vừa cất
+          for (const fid of inv.fileIds) await store.deleteFile(fid)
+        } else if (k && daCo.has(k)) {
           kq.trung = true
           for (const fid of inv.fileIds) await store.deleteFile(fid) // không giữ file của bản trùng
         } else {
@@ -222,6 +245,7 @@ export async function nhapHoaDonCu(files: File[], onTienDo?: (xong: number, tong
       }
     } catch (e) {
       out.push({ tenFile, soHd: '', kyHieu: '', ngayHd: '', nguoiBan: '', tongTien: 0, loi: (e as Error).message })
+      if (e instanceof AppCuError) break // dừng cả lô
     }
     onTienDo?.(++xong, nhom.size)
   }
@@ -235,6 +259,61 @@ export async function nhapHoaDonCu(files: File[], onTienDo?: (xong: number, tong
     const b = biLienQuan(inv, map)
     const them = [b && `⛔ ${b.loai === 'thayThe' ? 'ĐÃ BỊ THAY THẾ' : 'Đã bị điều chỉnh'} bởi HĐ ${b.boiSoHd}`, inv.hdLienQuan && `🔁 ${moTaLienQuan(inv.hdLienQuan)}`]
     k.ghiChu = [k.ghiChu, ...them].filter(Boolean).join(' · ') || undefined
+  }
+  return out
+}
+
+// ───────────── Đọc lại thông tin từ file đã đính kèm ─────────────
+
+/** Hồ sơ có file đính kèm nhưng chưa có thông tin hóa đơn (không số, 0 đ) — vd nhập lúc bộ đọc PDF lỗi. */
+export function laHoSoTrong(d: Dossier): boolean {
+  return d.invoices.length > 0 && d.invoices.every((i) => !i.soHd && !i.tongTien && i.fileIds.length > 0)
+}
+
+export interface KetQuaDocLai {
+  dossierId: string
+  tenFile: string
+  soHd: string
+  tongTien: number
+  trungVoi?: string // id hồ sơ đã có cùng số + ngày + MST
+  loi?: string
+}
+
+/** Đọc lại PDF/XML đã cất của các hồ sơ trống, điền thông tin vào chính hồ sơ đó (không cần tải lên lại). */
+export async function docLaiHoSoTrong(onTienDo?: (xong: number, tong: number) => void): Promise<KetQuaDocLai[]> {
+  const tatCa = await store.listDossiers()
+  const can = tatCa.filter(laHoSoTrong)
+  const daCo = new Map(tatCa.filter((d) => !laHoSoTrong(d)).flatMap((d) => d.invoices.map((i) => [khoaHoaDon(i), d.id] as const)).filter(([k]) => k))
+  const out: KetQuaDocLai[] = []
+  let xong = 0
+  for (const d of can) {
+    const inv = { ...d.invoices[0] }
+    let tenFile = ''
+    try {
+      for (const fid of inv.fileIds) {
+        const f = await store.getFile(fid)
+        if (!f) continue
+        tenFile = f.name
+        const file = new File([f.data], f.name, { type: f.type })
+        if (isXml(file)) Object.assign(inv, fillEmpty(inv, parseInvoiceXml(await file.text())))
+        else if (isPdf(file)) {
+          const p = await readPdfInvoice(file)
+          if (p) Object.assign(inv, fillEmpty(inv, p))
+        }
+      }
+      if (!inv.tenTaiKhoan && inv.tenNguoiBan) inv.tenTaiKhoan = toAccountName(inv.tenNguoiBan)
+      const k = khoaHoaDon(inv)
+      const kq: KetQuaDocLai = { dossierId: d.id, tenFile, soHd: inv.soHd, tongTien: inv.tongTien }
+      if (k && daCo.has(k)) kq.trungVoi = daCo.get(k)
+      else if (k) daCo.set(k, d.id)
+      if (!inv.soHd && !inv.tongTien) kq.loi = 'Vẫn không đọc được (PDF scan / mẫu lạ) — mở hồ sơ để nhập tay'
+      else await store.saveDossier({ ...d, invoices: [inv, ...d.invoices.slice(1)], updatedAt: Date.now() })
+      out.push(kq)
+    } catch (e) {
+      out.push({ dossierId: d.id, tenFile, soHd: '', tongTien: 0, loi: (e as Error).message })
+      if (e instanceof AppCuError) break
+    }
+    onTienDo?.(++xong, can.length)
   }
   return out
 }

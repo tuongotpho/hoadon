@@ -6,7 +6,7 @@ import SettingsPage from './components/SettingsPage'
 import SummaryPage from './components/SummaryPage'
 import TemplatesPage from './components/TemplatesPage'
 import { copyAll } from './lib/backup'
-import { cleanOrphanFiles } from './lib/dossierOps'
+import { cleanOrphanFiles, taiBoDocPdf } from './lib/dossierOps'
 import { IS_APP } from './lib/hooks'
 import { localStore, setStore, store } from './lib/store'
 
@@ -45,6 +45,8 @@ export default function App() {
   useEffect(() => {
     // Xin trình duyệt không tự dọn dữ liệu của app khi ổ đầy
     navigator.storage?.persist?.().catch(() => {})
+    // tải sẵn bộ đọc PDF: web có cập nhật giữa chừng thì trang đang mở vẫn đọc được PDF
+    taiBoDocPdf().catch(() => {})
     if (IS_APP) return // bản cửa sổ (Electron): Google không cho đăng nhập trong app này -> dùng trên máy
     let unsub = () => {}
     fb().then(({ onUser, storeFor }) => {
