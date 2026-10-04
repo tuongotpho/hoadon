@@ -1,3 +1,5 @@
+import { TU_KHOA_CAM_MAC_DINH } from './hangCam'
+
 // Một dòng hàng hóa / dịch vụ trên hóa đơn
 export interface InvoiceItem {
   ten: string
@@ -90,6 +92,7 @@ export interface Settings {
   chucVuNguoiDuyet: string
   dsNguoiDeNghi: string[] // danh sách người đề nghị đã lưu
   dsNhiemVu: string[] // danh sách nhiệm vụ đã lưu
+  tuKhoaCam: string[] // hàng cấm trên hóa đơn (rượu/bia…) — có thì cảnh báo + bắt xác nhận khi xuất
   nguongTien: number // ngưỡng 5tr: dưới thì không in TK người bán, dự trù nhỏ
   duTruDuoiNguong: number
   duTruTuNguong: number
@@ -110,6 +113,7 @@ export const DEFAULT_SETTINGS: Settings = {
   chucVuNguoiDuyet: '',
   dsNguoiDeNghi: ['Lê Việt Thanh', 'Nguyễn Đình Cường'],
   dsNhiemVu: ['quản lý kỹ thuật công tác CBM'],
+  tuKhoaCam: TU_KHOA_CAM_MAC_DINH,
   nguongTien: 5000000,
   duTruDuoiNguong: 5000000,
   duTruTuNguong: 20000000,

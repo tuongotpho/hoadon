@@ -3,16 +3,18 @@ import { fmtDate, today } from '../lib/dates'
 import { fillTemplate } from '../lib/docx'
 import { emptyInvoice, filesToInvoices } from '../lib/dossierOps'
 import { downloadBlob, IS_APP, loadTemplate, rememberOption, safeFileName, TEMPLATE_INFO, useSettings } from '../lib/hooks'
+import { moTaHangCam, timHangCam } from '../lib/hangCam'
 import { canThongTinTk, duTruOf, duTruTuDong, tongTienChuOf, tongTienOf } from '../lib/rules'
 import { formatMoney, moneyInWords } from '../lib/numberToWords'
 import {
   firstInvoiceDate, STATUS_COLOR, STATUS_LABEL, statusOf, suggestDnttDate, suggestToTrinhDate, totalOf, warningsOf,
 } from '../lib/status'
-import { store } from '../lib/store'
+import { store, type FileInfo } from '../lib/store'
 import { buildTemplateData } from '../lib/tags'
 import type { Dossier, Invoice, TemplateKind } from '../lib/types'
 import ChoiceInput from './ChoiceInput'
 import FileDrop from './FileDrop'
+import FileViewer from './FileViewer'
 import InvoiceCard from './InvoiceCard'
 import PreviewModal from './PreviewModal'
 import MoneyInput from './MoneyInput'
@@ -25,6 +27,8 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
   const [saved, setSaved] = useState(true)
   const [exporting, setExporting] = useState(false)
   const [preview, setPreview] = useState<TemplateKind | null>(null)
+  const [fileGoc, setFileGoc] = useState<FileInfo[]>([]) // file hóa đơn gốc, để xem lại nhanh ở mục 4
+  const [xemGoc, setXemGoc] = useState<FileInfo | null>(null)
   const timer = useRef<number | undefined>(undefined)
   const latest = useRef<Dossier | null>(null)
 
@@ -60,6 +64,12 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
     },
     [],
   )
+
+  const fileKey = d?.invoices.flatMap((i) => i.fileIds).join(',') ?? ''
+  useEffect(() => {
+    const ids = fileKey ? fileKey.split(',') : []
+    Promise.all(ids.map((id) => store.getFileInfo(id))).then((r) => setFileGoc(r.filter((x): x is FileInfo => !!x)))
+  }, [fileKey])
 
   if (!d) return <p className="text-slate-500">Đang tải…</p>
 
@@ -97,6 +107,18 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
   }
 
   async function exportDocs(kinds: TemplateKind[]) {
+    // Quy định: không thanh toán rượu/bia — bắt xác nhận trước khi xuất
+    const cam = timHangCam(d!.invoices, settings.tuKhoaCam)
+    if (cam.length) {
+      const ok = await hoi(
+        `⛔ HÓA ĐƠN CÓ RƯỢU/BIA — quy định không được thanh toán:
+${moTaHangCam(cam)}
+
+Anh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`,
+        { okLabel: 'Vẫn xuất', nguyHiem: true },
+      )
+      if (!ok) return
+    }
     setExporting(true)
     try {
       const cur = withDates(d!, kinds)
@@ -269,6 +291,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
                 onChange={(x) => setInvoices(d.invoices.map((y, j) => (j === i ? x : y)))}
                 onRemove={() => removeInvoice(i)}
                 canTk={canThongTinTk(d, settings)}
+                tuKhoaCam={settings.tuKhoaCam}
               />
             ))}
             <FileDrop onFiles={addInvoiceFiles} accept=".xml,.pdf,image/*">
@@ -297,6 +320,11 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
                 👁 Xem đề nghị TT
               </button>
             </div>
+            {fileGoc.map((f) => (
+              <button key={f.id} className="btn w-full justify-start" title="Xem lại file hóa đơn gốc" onClick={() => setXemGoc(f)}>
+                📎 <span className="truncate">Xem hóa đơn gốc: {f.name}</span>
+              </button>
+            ))}
             <button className="btn-primary w-full justify-center" disabled={exporting} onClick={() => exportDocs(['toTrinh', 'dntt'])}>
               ⬇ Xuất cả 2 file Word
             </button>
@@ -339,6 +367,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
           onExport={(k) => exportDocs(k)}
         />
       )}
+      {xemGoc && <FileViewer info={xemGoc} onClose={() => setXemGoc(null)} />}
     </div>
   )
 }

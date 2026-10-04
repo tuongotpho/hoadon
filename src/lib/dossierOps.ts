@@ -1,4 +1,5 @@
 import { parseInvoiceXml } from './invoiceXml'
+import { moTaHangCam, timHangCam } from './hangCam'
 import { parseInvoiceText } from './invoicePdf'
 import { emptyInvoice } from './model'
 import { newId, store } from './store'
@@ -106,6 +107,10 @@ export async function filesToInvoices(files: File[]): Promise<{ invoices: Invoic
   for (const inv of invoices) {
     if (!inv.tenTaiKhoan && inv.tenNguoiBan) inv.tenTaiKhoan = await guessAccountName(inv)
   }
+  const cam = timHangCam(invoices, (await store.getSettings()).tuKhoaCam)
+  if (cam.length) notes.unshift(`⛔ HÓA ĐƠN CÓ RƯỢU/BIA — quy định không được thanh toán:
+${moTaHangCam(cam)}
+`)
   return { invoices, errors, notes }
 }
 

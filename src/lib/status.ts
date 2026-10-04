@@ -1,4 +1,5 @@
 import { addWorkingDays, daysBetween, today } from './dates'
+import { timHangCam } from './hangCam'
 import { canThongTinTk, chuKhopSo, duTruOf, sumInvoices } from './rules'
 import type { Dossier, Settings } from './types'
 
@@ -59,6 +60,8 @@ export function warningsOf(d: Dossier, s: Settings): string[] {
   if (d.ngayDntt && hd && d.ngayDntt < hd) w.push('Ngày ĐNTT đang TRƯỚC ngày hóa đơn')
   if (d.ngayNopKeToan && d.ngayDntt && d.ngayNopKeToan < d.ngayDntt) w.push('Ngày nộp kế toán TRƯỚC ngày ĐNTT')
   if (d.ngayKeToanTt && d.ngayNopKeToan && d.ngayKeToanTt < d.ngayNopKeToan) w.push('Ngày kế toán thanh toán TRƯỚC ngày nộp')
+  const cam = timHangCam(d.invoices, s.tuKhoaCam)
+  if (cam.length) w.unshift(`CÓ RƯỢU/BIA trên hóa đơn (${cam.map((c) => c.ten).join(', ')}) — quy định không được thanh toán`)
   const tong = totalOf(d)
   if (tong > duTruOf(d, s)) w.push('Tiền hóa đơn VƯỢT số tiền dự trù trong tờ trình')
   if (canThongTinTk(d, s) && d.invoices.some((i) => !i.stkNguoiBan || !i.tenTaiKhoan)) {

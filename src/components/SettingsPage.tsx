@@ -6,6 +6,7 @@ import { localStore, store } from '../lib/store'
 import type { Settings } from '../lib/types'
 import FileDrop from './FileDrop'
 import MoneyInput from './MoneyInput'
+import { TU_KHOA_CAM_MAC_DINH } from '../lib/hangCam'
 import { bao, hoi } from '../lib/dialog'
 
 /** Đưa hồ sơ đang nằm trên máy (nhập lúc chưa đăng nhập) lên tài khoản. Dữ liệu trên máy giữ nguyên. */
@@ -40,7 +41,7 @@ function ChuyenLenTaiKhoan() {
 }
 
 /** Sửa danh sách lựa chọn: xóa từng mục, thêm mục mới, đổi thứ tự (mục đầu là mặc định). */
-function ListEditor({ label, items, onChange }: { label: string; items: string[]; onChange: (v: string[]) => void }) {
+function ListEditor({ label, items, onChange, gon = false }: { label: string; items: string[]; onChange: (v: string[]) => void; gon?: boolean }) {
   const [moi, setMoi] = useState('')
   const add = () => {
     const v = moi.trim()
@@ -50,6 +51,18 @@ function ListEditor({ label, items, onChange }: { label: string; items: string[]
   return (
     <div>
       <label className="lbl">{label}</label>
+      {gon ? (
+        <div className="flex flex-wrap gap-1">
+          {items.map((it) => (
+            <span key={it} className="inline-flex items-center gap-1 rounded-full border border-red-200 bg-red-50 px-2 py-0.5 text-xs text-red-800">
+              {it}
+              <button className="text-red-400 hover:text-red-700" title="Bỏ từ này" onClick={() => onChange(items.filter((x) => x !== it))}>
+                ✕
+              </button>
+            </span>
+          ))}
+        </div>
+      ) : (
       <div className="space-y-1">
         {items.map((it, i) => (
           <div key={it} className="flex items-center gap-1.5 text-sm">
@@ -68,6 +81,7 @@ function ListEditor({ label, items, onChange }: { label: string; items: string[]
           </div>
         ))}
       </div>
+      )}
       <div className="mt-1 flex gap-1.5">
         <input className="inp" placeholder="Thêm mới…" value={moi} onChange={(e) => setMoi(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && add()} />
         <button className="btn shrink-0" onClick={add}>
@@ -143,6 +157,16 @@ export default function SettingsPage() {
           items={s.dsNhiemVu}
           onChange={(v) => setS({ ...s, dsNhiemVu: v })}
         />
+
+        <h2 className="pt-2 font-semibold text-slate-800">Hàng cấm trên hóa đơn</h2>
+        <p className="text-xs text-slate-500">
+          Tên hàng có các từ này (rượu, bia, nhãn hiệu…) thì app cảnh báo ngay khi đọc hóa đơn và bắt xác nhận trước khi xuất Word. So theo
+          từ trọn vẹn, giữ dấu: "bia" không khớp "bìa".
+        </p>
+        <ListEditor gon label="Từ khóa cấm" items={s.tuKhoaCam} onChange={(v) => setS({ ...s, tuKhoaCam: v })} />
+        <button className="text-xs text-blue-600 hover:underline" onClick={() => setS({ ...s, tuKhoaCam: TU_KHOA_CAM_MAC_DINH })}>
+          ↺ Khôi phục danh sách mặc định ({TU_KHOA_CAM_MAC_DINH.length} từ)
+        </button>
 
         <h2 className="pt-2 font-semibold text-slate-800">Quy tắc tiền</h2>
         <div className="grid grid-cols-3 gap-3">

@@ -3,6 +3,7 @@ import { fmtDate } from '../lib/dates'
 import { fillEmpty, readPdfInvoice, saveUpload, toAccountName } from '../lib/dossierOps'
 import { parseInvoiceXml } from '../lib/invoiceXml'
 import { formatMoney, moneyInWords } from '../lib/numberToWords'
+import { timHangCam } from '../lib/hangCam'
 import { chuKhopSo } from '../lib/rules'
 import { store } from '../lib/store'
 import type { FileInfo } from '../lib/store'
@@ -18,13 +19,16 @@ interface Props {
   onChange: (inv: Invoice) => void
   onRemove: () => void
   canTk: boolean // hồ sơ từ 5 triệu -> cần thông tin tài khoản
+  tuKhoaCam: string[]
 }
 
 
-export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: Props) {
+export default function InvoiceCard({ index, inv, onChange, onRemove, canTk, tuKhoaCam }: Props) {
+  const cam = timHangCam([inv], tuKhoaCam)
+  const tenCam = new Set(cam.map((c) => c.ten))
   const [files, setFiles] = useState<FileInfo[]>([])
   const [xem, setXem] = useState<FileInfo | null>(null)
-  const [showItems, setShowItems] = useState(false)
+  const [showItems, setShowItems] = useState(cam.length > 0) // có rượu/bia thì mở sẵn bảng hàng
 
   useEffect(() => {
     // chỉ đọc tên file — nội dung tải khi bấm xem
@@ -62,7 +66,15 @@ export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: P
   const sumCheck = inv.tongTien && (inv.tienTruocThue || inv.tienThue) && Math.abs(inv.tienTruocThue + inv.tienThue - inv.tongTien) > 1
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3">
+    <div className={`rounded-lg border p-3 ${cam.length ? 'border-2 border-red-500 bg-red-50/40' : 'border-slate-200 bg-slate-50/60'}`}>
+      {cam.length > 0 && (
+        <div className="mb-2 rounded-md bg-red-600 px-3 py-2 text-sm font-medium text-white">
+          ⛔ Hóa đơn có rượu/bia — quy định không được thanh toán: {cam.map((c) => `"${c.ten}"`).join(', ')}
+          <div className="text-xs font-normal opacity-90">
+            Tổng tiền các dòng này: {formatMoney(cam.reduce((a, c) => a + c.thanhTien, 0))} đ. Nên đề nghị nơi bán xuất lại hóa đơn không có các dòng này.
+          </div>
+        </div>
+      )}
       <div className="mb-2 flex items-center justify-between">
         <div className="text-sm font-semibold text-slate-700">
           Hóa đơn {index + 1}
@@ -166,7 +178,7 @@ export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: P
               </thead>
               <tbody>
                 {inv.items.map((it, i) => (
-                  <tr key={i} className="border-t border-slate-100">
+                  <tr key={i} className={`border-t border-slate-100 ${tenCam.has(it.ten) ? 'bg-red-100 font-semibold text-red-800' : ''}`}>
                     <td className="px-2 py-1">{it.ten}</td>
                     <td className="px-2 py-1 text-center">{it.dvt}</td>
                     <td className="px-2 py-1 text-right">{it.soLuong.toLocaleString('vi-VN')}</td>
