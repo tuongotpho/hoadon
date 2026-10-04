@@ -12,3 +12,4 @@ tests/pdf-misa.test.ts
 scripts/gan-o-mau.mjs
 scripts/gom-hoa-don.ts
 scripts/soat-thu-muc.ts
+.firebase/
