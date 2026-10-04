@@ -50,6 +50,40 @@ export function lienQuanPdf(all: string): HdLienQuan | null {
   }
 }
 
+/** Số hóa đơn: cùng dòng với nhãn "Số (No.) : 1434", hoặc ở 1–3 dòng ngay dưới nhãn ("(KHỞI TẠO TỪ MÁY TÍNH TIỀN) 1456"). */
+function soHoaDon(lines: string[]): string {
+  for (let i = 0; i < lines.length; i++) {
+    const l = lines[i].replace(/Mẫu\s*số[^:\n]*:[ \t]*\S+/gi, '') // "Mẫu số (Form No.) : 1/002" không phải số hóa đơn
+    // VNPT viết tách từng chữ số: "Số (Invoice No.) : 0 0 0 0 0 2 6 1"
+    const cung = /(?:^|\s)Số(?:\s*hóa đơn)?[ \t]*(?:\([^)]*\))?[ \t]*:[ \t]*((?:\d[ \t]?){1,12})(?!\S*\d)/i.exec(l)
+    if (cung) return String(Number(cung[1].replace(/\s/g, '')))
+    if (/(?:^|\s)Số(?:\s*hóa đơn)?[ \t]*(?:\([^)]*\))?[ \t]*:[ \t]*$/i.test(l)) {
+      for (const sau of lines.slice(i + 1, i + 4)) {
+        if (/Mã|MST|Ngày/i.test(sau)) continue
+        const m = /(?:^|\s)0*(\d{1,8})[ \t]*$/.exec(sau)
+        if (m) return m[1]
+      }
+    }
+  }
+  return ''
+}
+
+/** Ký hiệu: "Ký hiệu (Serial): 1C24THP"; có mẫu để ký hiệu ở dòng dưới ("HÓA ĐƠN GIÁ TRỊ GIA TĂNG 1C24TBA")
+ *  hoặc tách "Mẫu số : 1/002" + "Ký hiệu : C25TDG" -> 1C25TDG. */
+function kyHieuHoaDon(lines: string[], all: string): string {
+  const kh = first(all, /Ký hiệu[^:\n]*:[ \t]*([0-9]?[A-Z][A-Z0-9]{4,7})\b/i).toUpperCase()
+  if (/^\d/.test(kh)) return kh
+  const mau = first(all, /Mẫu số[^:\n]*:[ \t]*(\d)/i)
+  if (kh) return mau + kh
+  const truoc = lines.slice(0, 8).join(' ')
+  return /\b([12]C\d{2}[A-Z]{2,3})\b/.exec(truoc)?.[1] ?? ''
+}
+
+/** Bản thể hiện chưa cấp số ("Số : <Chưa cấp số>") — bản nháp, KHÔNG phải hóa đơn chính thức. */
+export function laBanNhap(lines: string[]): boolean {
+  return lines.some((l) => /Số[^:\n]*:\s*<?\s*Chưa\s+cấp\s+số/i.test(l))
+}
+
 export function parseInvoiceText(lines: string[]): Partial<ParsedInvoice> & { found: number } {
   const all = lines.join('\n')
   // phần người bán: từ đầu tới chỗ bắt đầu thông tin người mua
@@ -59,11 +93,14 @@ export function parseInvoiceText(lines: string[]): Partial<ParsedInvoice> & { fo
   const ngay = /Ngày\s*(?:\([^)]*\))?\s*(\d{1,2})\s*tháng\s*(?:\([^)]*\))?\s*(\d{1,2})\s*năm\s*(?:\([^)]*\))?\s*(\d{4})/i.exec(all)
 
   const r: Partial<ParsedInvoice> = {
-    kyHieu: first(all, /Ký hiệu[^:\n]*:\s*([0-9][A-Z0-9]{5,8})/i),
-    soHd: first(all, /(?:^|\s)Số(?:\s*hóa đơn)?\s*(?:\([^)]*\))?\s*:\s*0*(\d{1,8})\b/im),
+    kyHieu: kyHieuHoaDon(lines, all),
+    soHd: soHoaDon(lines),
     ngayHd: ngay ? `${ngay[3]}-${ngay[2].padStart(2, '0')}-${ngay[1].padStart(2, '0')}` : '',
-    tenNguoiBan: cutAtNextLabel(first(seller, /(?:Đơn vị bán(?: hàng)?|Tên người bán|Người bán(?: hàng)?)\s*(?:\([^)]*\))?\s*:\s*(.+)/i)),
-    mstNguoiBan: first(seller, /Mã số thuế\s*(?:\([^)]*\))?\s*:\s*([\d\s-]{10,20})/i).replace(/\s/g, ''),
+    tenNguoiBan: cutAtNextLabel(
+      first(seller, /(?:Đơn vị bán(?: hàng)?|Tên người bán|Người bán(?: hàng)?|Tên hộ kinh doanh|Chủ hộ kinh doanh)[ \t]*(?:\([^)]*\))?[ \t]*:[ \t]*(.+)/i),
+    ),
+    // hộ kinh doanh có khi ghi "Căn cước công dân" / "Mã số định danh"; Bkav/VNPT ghi "MST (Tax Code)"
+    mstNguoiBan: first(seller, /(?:Mã số thuế|MST|Căn cước công dân|CCCD|Mã số định danh)[ \t]*(?:\([^)]*\))?[ \t]*:[ \t]*([\d \t-]{9,32})/i).replace(/\s/g, ''), // tối đa 32 ký tự: VNPT viết tách từng chữ số
     diaChiNguoiBan: cutAtNextLabel(first(seller, /Địa chỉ\s*(?:\([^)]*\))?\s*:\s*(.+)/i)),
     stkNguoiBan: first(seller, /Số tài khoản\s*(?:\([^)]*\))?\s*:\s*([\d\s.-]{5,30}\d)/i).replace(/[\s.]/g, ''),
     nganHangNguoiBan: cutAtNextLabel(first(seller, /Ngân hàng\s*(?:\([^)]*\))?\s*:\s*(.+)/i)),
@@ -72,28 +109,38 @@ export function parseInvoiceText(lines: string[]): Partial<ParsedInvoice> & { fo
   // MISA: tên người bán nằm ở dòng ngay trên "Mã số thuế", không có nhãn
   if (!r.tenNguoiBan) {
     const sl = seller.split('\n')
-    const i = sl.findIndex((l) => /Mã số thuế/i.test(l))
+    const i = sl.findIndex((l) => /Mã số thuế|Căn cước công dân|CCCD|Mã số định danh/i.test(l))
     const prev = i > 0 ? sl[i - 1].trim() : ''
     if (prev && !prev.includes(':') && prev.length > 5) r.tenNguoiBan = prev
   }
   // MISA: "Số tài khoản : 0123456789 - Ngân hàng TMCP … - Chi nhánh …"
   if (!r.nganHangNguoiBan) r.nganHangNguoiBan = first(seller, /Số tài khoản[^:\n]*:\s*[\d\s.]+-\s*(.+)/i)
 
-  const tienThue = money(first(all, /Tiền thuế (?:GTGT|giá trị gia tăng)[^:\n]*:\s*([\d.,]+)/i))
-  const congHang = money(first(all, /Cộng tiền hàng(?: hóa, dịch vụ| hóa| hoá, dịch vụ)?[^:\n]*:\s*([\d.,]+)/i))
-  const tong = money(first(all, /Tổng (?:cộng )?(?:số )?tiền thanh toán[^:\n]*:\s*([\d.,]+)/i))
-  // MISA: "Tổng cộng : 17.603.250 1.430.760 19.034.010" = trước thuế, thuế, tổng
-  const tc = /Tổng cộng\s*:\s*([\d.,]+)\s+([\d.,]+)\s+([\d.,]+)/i.exec(all)
-  if (tc && !tong) {
-    r.tienTruocThue = money(tc[1])
-    r.tienThue = money(tc[2])
-    r.tongTien = money(tc[3])
+  // ── Tiền. Mọi dò tìm chỉ trong CÙNG MỘT DÒNG ([ \t]* thay vì \s*) để không lấy nhầm số ở dòng dưới ──
+  const tienThueRieng = money(first(all, /Tiền thuế (?:GTGT|giá trị gia tăng)[^:\n]*:[ \t]*'?([\d.,]+)/i))
+  // "Cộng tiền (bán) hàng hóa, dịch vụ (Total amount): 4.055.051 [324.949]" — có mẫu ghi luôn tiền thuế ở số thứ 2
+  const ch = /Cộng tiền (?:bán )?hàng(?: hóa, dịch vụ| hóa| hoá, dịch vụ)?[^:\n]*:[ \t]*'?([\d.,]+)(?:[ \t]+([\d.,]+))?/i.exec(all)
+  const congHang = money(ch?.[1])
+  // "Tổng tiền thanh toán: X" hoặc "Tổng tiền thanh toán (Total of payment): trước thuế  thuế  tổng"
+  const tt = /Tổng (?:cộng )?(?:số )?tiền thanh toán[^:\n]*:[ \t]*'?([\d.,]+)(?:[ \t]+([\d.,]+)[ \t]+([\d.,]+))?/i.exec(all)
+  // MISA: "Tổng cộng (Total) : 17.603.250 1.430.760 19.034.010"
+  const tc = /Tổng cộng[ \t]*(?:\([^)]*\))?[ \t]*:[ \t]*([\d.,]+)[ \t]+([\d.,]+)[ \t]+([\d.,]+)/i.exec(all)
+  const ba = tt?.[3] ? tt : tc // dòng có đủ 3 số: số CUỐI là tổng
+  if (ba) {
+    r.tienTruocThue = money(ba[1])
+    r.tienThue = money(ba[2])
+    r.tongTien = money(ba[3])
   } else {
-    r.tienThue = tienThue
     r.tienTruocThue = congHang
-    r.tongTien = tong || congHang + tienThue
+    r.tienThue = money(ch?.[2]) || tienThueRieng
+    r.tongTien = money(tt?.[1]) || congHang + (r.tienThue ?? 0)
   }
-  r.tienBangChu = first(all, /(?:Số tiền|Tổng tiền)[^:\n]*bằng chữ[^:\n]*:\s*(.+)/i)
+  r.tienBangChu = first(all, /(?:(?:Số tiền|Tổng tiền)[^:\n]*bằng chữ|^[ \t]*Bằng chữ)[^:\n]*:[ \t]*(.+)/im)
+  if (!r.tienBangChu) {
+    // nhãn ở cuối dòng, chữ ở dòng dưới: "Số tiền viết bằng chữ (In words) :" ↵ "Bốn triệu … đồng"
+    const i = lines.findIndex((l) => /bằng chữ[^:]*:[ \t]*$/i.test(l))
+    if (i >= 0 && /đồng/i.test(lines[i + 1] ?? '')) r.tienBangChu = lines[i + 1].trim()
+  }
   r.hdLienQuan = lienQuanPdf(all)
 
   // Dòng hàng hóa:

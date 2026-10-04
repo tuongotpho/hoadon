@@ -68,10 +68,11 @@ describe('nhập nhiều hóa đơn cũ', () => {
     expect(warningsOf(lech, DEFAULT_SETTINGS)[0]).toMatch(/KHÔNG khớp/)
   })
 
-  it('khóa nhận diện bỏ số 0 đầu, không phân biệt hoa thường', () => {
-    expect(khoaHoaDon({ kyHieu: '1c26mpd', soHd: '00000322', mstNguoiBan: '0100000009' })).toBe(
-      khoaHoaDon({ kyHieu: '1C26MPD', soHd: '322', mstNguoiBan: '0100000009' }),
-    )
-    expect(khoaHoaDon({ kyHieu: '', soHd: '', mstNguoiBan: '' })).toBe('')
+  it('trùng = cùng SỐ + NGÀY XUẤT + MST đơn vị xuất (bỏ số 0 đầu)', () => {
+    const k = (soHd: string, ngayHd: string, mstNguoiBan: string) => khoaHoaDon({ soHd, ngayHd, mstNguoiBan })
+    expect(k('00000322', '2026-05-27', '0100000009')).toBe(k('322', '2026-05-27', '0100000009'))
+    expect(k('322', '2026-05-27', '0100000009')).not.toBe(k('322', '2026-05-28', '0100000009')) // khác ngày -> không trùng
+    expect(k('322', '2026-05-27', '0100000009')).not.toBe(k('322', '2026-05-27', '0300000000')) // khác đơn vị xuất -> không trùng
+    expect(k('322', '', '0100000009')).toBe('') // thiếu ngày -> không dò trùng
   })
 })

@@ -1,7 +1,7 @@
 import { parseInvoiceXml } from './invoiceXml'
 import { moTaHangCam, timHangCam } from './hangCam'
 import { banDoThayThe, biLienQuan, moTaBiLienQuan, moTaLienQuan } from './thayThe'
-import { parseInvoiceText } from './invoicePdf'
+import { laBanNhap, parseInvoiceText } from './invoicePdf'
 import { emptyDossier, emptyInvoice } from './model'
 import { newId, store } from './store'
 import type { Invoice, StoredFile } from './types'
@@ -39,9 +39,18 @@ const isXml = (f: File) => /\.xml$/i.test(f.name) || f.type.includes('xml')
 const isPdf = (f: File) => /\.pdf$/i.test(f.name) || f.type === 'application/pdf'
 
 /** Đọc PDF hóa đơn điện tử. Trả về null nếu không dò ra gì (vd PDF scan). */
+/** PDF là bản nháp "Số : <Chưa cấp số>" — không phải hóa đơn chính thức */
+export class BanNhapError extends Error {
+  constructor() {
+    super('BẢN NHÁP — hóa đơn CHƯA CẤP SỐ, không phải hóa đơn chính thức. Không tạo hồ sơ.')
+  }
+}
+
 export async function readPdfInvoice(f: File) {
   const { pdfToLines } = await import('./pdfText') // thư viện PDF nặng, chỉ tải khi cần
-  const parsed = parseInvoiceText(await pdfToLines(await f.arrayBuffer()))
+  const lines = await pdfToLines(await f.arrayBuffer())
+  if (laBanNhap(lines)) throw new BanNhapError()
+  const parsed = parseInvoiceText(lines)
   if (parsed.found < 3) return null
   const { found: _f, ...rest } = parsed
   return rest
@@ -100,6 +109,11 @@ export async function filesToInvoices(files: File[]): Promise<{ invoices: Invoic
           errors.push(`${f.name}: PDF không có chữ đọc được (có thể là bản scan)`)
         }
       } catch (e) {
+        if (e instanceof BanNhapError) {
+          errors.push(`${f.name}: ${e.message}`)
+          await store.deleteFile(stored.id) // không giữ file nháp
+          continue
+        }
         errors.push(`${f.name}: không đọc được PDF (${(e as Error).message})`)
       }
     }
@@ -162,10 +176,14 @@ export interface KetQuaNhap {
   ghiChu?: string // cảnh báo rượu/bia, đọc PDF…
 }
 
-/** Khóa nhận diện 1 hóa đơn: ký hiệu + số + MST người bán (thiếu thì không dò trùng được). */
-export function khoaHoaDon(i: Pick<Invoice, 'kyHieu' | 'soHd' | 'mstNguoiBan'>): string {
-  if (!i.soHd || (!i.kyHieu && !i.mstNguoiBan)) return ''
-  return [i.kyHieu.trim().toUpperCase(), String(Number(i.soHd) || i.soHd.trim()), i.mstNguoiBan.trim()].join('|')
+/**
+ * Khóa nhận diện 1 hóa đơn — quy tắc của anh: TRÙNG khi cùng SỐ + NGÀY XUẤT + MST đơn vị xuất.
+ * Tên file / tên hóa đơn giống nhau không tính. Thiếu 1 trong 3 thì không coi là trùng (giữ cả, để người xem).
+ */
+export function khoaHoaDon(i: Pick<Invoice, 'soHd' | 'ngayHd' | 'mstNguoiBan'>): string {
+  const so = i.soHd.trim()
+  if (!so || !i.ngayHd || !i.mstNguoiBan.trim()) return ''
+  return [String(Number(so) || so), i.ngayHd, i.mstNguoiBan.replace(/\s/g, '')].join('|')
 }
 
 /**

@@ -21,12 +21,15 @@ export interface DongCam {
 
 const chuan = (s: string) => s.normalize('NFC').toLowerCase()
 
+// Món ăn nấu với rượu/bia ("tôm hấp bia", "gà hấp rượu") không phải đồ uống -> bỏ qua
+const CACH_NAU = '(?:hấp|nấu|om|sốt|ngâm|tẩm|ướp|luộc|kho|xào|nướng|chưng|quay)'
+
 function khop(ten: string, tu: string): boolean {
   const t = chuan(tu).trim()
   if (!t) return false
   const esc = t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&').replace(/\s+/g, '\\s+')
-  // không có chữ/số dính liền hai bên => khớp nguyên từ
-  return new RegExp(`(?<![\\p{L}\\p{N}])${esc}(?![\\p{L}\\p{N}])`, 'u').test(chuan(ten))
+  // không có chữ/số dính liền hai bên => khớp nguyên từ; đứng ngay sau cách nấu => là món ăn
+  return new RegExp(`(?<![\\p{L}\\p{N}])(?<!${CACH_NAU}\\s+)${esc}(?![\\p{L}\\p{N}])`, 'u').test(chuan(ten))
 }
 
 export function timHangCam(invoices: Invoice[], tuKhoa: string[]): DongCam[] {

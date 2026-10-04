@@ -11,3 +11,5 @@ tests/fixtures/misa-*.json
 tests/mau-hung-yen.test.ts
 tests/pdf-misa.test.ts
 scripts/gan-o-mau.mjs
+scripts/gom-hoa-don.ts
+scripts/soat-thu-muc.ts
