@@ -5,6 +5,7 @@ import { store } from '../lib/store'
 import { TAG_GROUPS } from '../lib/tags'
 import type { TemplateKind } from '../lib/types'
 import FileDrop from './FileDrop'
+import { hoi } from '../lib/dialog'
 
 function TemplateSlot({ kind }: { kind: TemplateKind }) {
   const info = TEMPLATE_INFO[kind]
@@ -40,7 +41,7 @@ function TemplateSlot({ kind }: { kind: TemplateKind }) {
   }
 
   async function reset() {
-    if (!confirm('Bỏ mẫu đã up, quay về mẫu Hưng Yên đã gắn ô?')) return
+    if (!(await hoi('Bỏ mẫu đã up, quay về mẫu Hưng Yên đã gắn ô?'))) return
     await store.deleteTemplate(kind)
     setMsg(null)
     refresh()

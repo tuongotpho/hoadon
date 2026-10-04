@@ -8,6 +8,7 @@ import { store } from '../lib/store'
 import type { Invoice, StoredFile } from '../lib/types'
 import FileDrop from './FileDrop'
 import MoneyInput from './MoneyInput'
+import { bao, hoi } from '../lib/dialog'
 
 interface Props {
   index: number
@@ -46,7 +47,7 @@ export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: P
           if (p) next = fillEmpty(next, p)
         }
       } catch (e) {
-        alert(`${f.name}: ${(e as Error).message}`)
+        void bao(`${f.name}: ${(e as Error).message}`)
       }
     }
     if (!next.tenTaiKhoan && next.tenNguoiBan) next = { ...next, tenTaiKhoan: toAccountName(next.tenNguoiBan) }
@@ -54,7 +55,7 @@ export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: P
   }
 
   async function removeFile(id: string) {
-    if (!confirm('Gỡ file này khỏi hóa đơn?')) return
+    if (!(await hoi('Gỡ file này khỏi hóa đơn?'))) return
     await store.deleteFile(id)
     set('fileIds', inv.fileIds.filter((x) => x !== id))
   }

@@ -17,6 +17,7 @@ import InvoiceCard from './InvoiceCard'
 import PreviewModal from './PreviewModal'
 import MoneyInput from './MoneyInput'
 import ThanhPhanEditor from './ThanhPhanEditor'
+import { bao, hoi } from '../lib/dialog'
 
 export default function DossierEditor({ id, onClose }: { id: string; onClose: () => void }) {
   const settings = useSettings()
@@ -74,7 +75,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
   async function addInvoiceFiles(files: File[]) {
     const { invoices, errors, notes } = await filesToInvoices(files)
     const msg = [...notes, ...errors.map((e) => '⚠ ' + e)]
-    if (msg.length) alert(msg.join('\n'))
+    if (msg.length) void bao(msg.join('\n'))
     const next = { ...d!, invoices: [...d!.invoices, ...invoices] }
     if (!next.ngayToTrinh) next.ngayToTrinh = suggestToTrinhDate(next, settings)
     update(next)
@@ -82,7 +83,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
 
   async function removeInvoice(idx: number) {
     const inv = d!.invoices[idx]
-    if (!confirm(`Xóa hóa đơn ${inv.soHd || idx + 1} cùng các file đính kèm?`)) return
+    if (!(await hoi(`Xóa hóa đơn ${inv.soHd || idx + 1} cùng các file đính kèm?`))) return
     for (const fid of inv.fileIds) await store.deleteFile(fid)
     setInvoices(d!.invoices.filter((_, i) => i !== idx))
   }
@@ -109,14 +110,14 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
         downloadBlob(blob, `${TEMPLATE_INFO[k].tenFile}${tail ? ' - ' + tail : ''}.docx`)
       }
     } catch (e) {
-      alert('Lỗi khi xuất file:\n' + (e as Error).message + '\n\nKiểm tra lại mẫu ở trang "Mẫu in".')
+      void bao('Lỗi khi xuất file:\n' + (e as Error).message + '\n\nKiểm tra lại mẫu ở trang "Mẫu in".')
     } finally {
       setExporting(false)
     }
   }
 
   async function del() {
-    if (!confirm('Xóa hẳn hồ sơ này cùng toàn bộ file hóa đơn đính kèm?')) return
+    if (!(await hoi('Xóa hẳn hồ sơ này cùng toàn bộ file hóa đơn đính kèm?'))) return
     window.clearTimeout(timer.current)
     latest.current = null
     await store.deleteDossier(d!.id)

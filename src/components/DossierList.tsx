@@ -11,6 +11,7 @@ import {
 import { store } from '../lib/store'
 import type { Dossier } from '../lib/types'
 import FileDrop from './FileDrop'
+import { bao } from '../lib/dialog'
 
 const ORDER: StatusKey[] = ['chuaHd', 'choLamHs', 'choNop', 'choKt', 'daTt']
 
@@ -57,7 +58,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
         d.invoices = invoices
         d.ngayToTrinh = suggestToTrinhDate(d, settings)
         const msg = [...notes, ...errors.map((e) => '⚠ ' + e)]
-        if (msg.length) alert(msg.join('\n'))
+        if (msg.length) void bao(msg.join('\n'))
       }
       await store.saveDossier(d)
       onOpen(d.id)

@@ -6,6 +6,7 @@ import { localStore, store } from '../lib/store'
 import type { Settings } from '../lib/types'
 import FileDrop from './FileDrop'
 import MoneyInput from './MoneyInput'
+import { bao, hoi } from '../lib/dialog'
 
 /** Đưa hồ sơ đang nằm trên máy (nhập lúc chưa đăng nhập) lên tài khoản. Dữ liệu trên máy giữ nguyên. */
 function ChuyenLenTaiKhoan() {
@@ -16,7 +17,7 @@ function ChuyenLenTaiKhoan() {
   }, [])
   if (!n) return null
   async function chuyen() {
-    if (!confirm(`Đưa ${n} hồ sơ trên máy này (kèm file, mẫu và cài đặt) lên tài khoản? Hồ sơ trùng sẽ lấy bản trên máy.`)) return
+    if (!(await hoi(`Đưa ${n} hồ sơ trên máy này (kèm file, mẫu và cài đặt) lên tài khoản? Hồ sơ trùng sẽ lấy bản trên máy.`))) return
     setMsg('Đang đưa lên…')
     try {
       const r = await copyAll(localStore, store)
@@ -120,13 +121,13 @@ export default function SettingsPage() {
   }
 
   async function restore(files: File[]) {
-    if (!confirm('Nạp bản sao lưu? Hồ sơ trùng sẽ được thay bằng bản trong file sao lưu.')) return
+    if (!(await hoi('Nạp bản sao lưu? Hồ sơ trùng sẽ được thay bằng bản trong file sao lưu.'))) return
     setBusy(true)
     try {
       const r = await importBackup(store, files[0])
-      alert(`Đã nạp ${r.dossiers} hồ sơ, ${r.files} file hóa đơn, ${r.templates} mẫu.`)
+      void bao(`Đã nạp ${r.dossiers} hồ sơ, ${r.files} file hóa đơn, ${r.templates} mẫu.`)
     } catch (e) {
-      alert('Không nạp được: ' + (e as Error).message)
+      void bao('Không nạp được: ' + (e as Error).message)
     } finally {
       setBusy(false)
     }

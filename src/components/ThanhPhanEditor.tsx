@@ -1,5 +1,6 @@
 import { store } from '../lib/store'
 import type { ThanhPhan } from '../lib/types'
+import { bao, hoi } from '../lib/dialog'
 
 interface Props {
   value: ThanhPhan[]
@@ -22,8 +23,8 @@ export default function ThanhPhanEditor({ value, onChange, currentId, goiYDonVi 
 
   async function copyFromPrevious() {
     const prev = (await store.listDossiers()).find((d) => d.id !== currentId && d.thanhPhan.length > 0)
-    if (!prev) return alert('Chưa có hồ sơ nào trước đó có thành phần tham gia.')
-    if (value.length && !confirm(`Thay bằng thành phần của hồ sơ "${prev.noiDung}"?`)) return
+    if (!prev) return void bao('Chưa có hồ sơ nào trước đó có thành phần tham gia.')
+    if (value.length && !(await hoi(`Thay bằng thành phần của hồ sơ "${prev.noiDung}"?`))) return
     onChange(prev.thanhPhan.map((t) => ({ ...t })))
   }
 
