@@ -46,8 +46,8 @@ const hd = (soHd: string, kyHieu: string, mst: string, lq: Dossier['invoices'][0
 })
 
 describe('cảnh báo hóa đơn đã bị thay thế', () => {
-  const cu = { ...emptyDossier(), id: 'cu', invoices: [hd('322', '1C26MPD', '0109596976')] }
-  const moi = { ...emptyDossier(), id: 'moi', invoices: [hd('357', '1C26MPD', '0109596976', { loai: 'thayThe', kyHieu: '1C26MPD', soHd: '322', ngayHd: '2026-05-27' })] }
+  const cu = { ...emptyDossier(), id: 'cu', invoices: [hd('322', '1C26MPD', '0100000009')] }
+  const moi = { ...emptyDossier(), id: 'moi', invoices: [hd('357', '1C26MPD', '0100000009', { loai: 'thayThe', kyHieu: '1C26MPD', soHd: '322', ngayHd: '2026-05-27' })] }
 
   it('HĐ cũ bị gắn ⛔, HĐ mới thì không', () => {
     const map = banDoThayThe([cu, moi])

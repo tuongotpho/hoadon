@@ -69,8 +69,8 @@ describe('nhập nhiều hóa đơn cũ', () => {
   })
 
   it('khóa nhận diện bỏ số 0 đầu, không phân biệt hoa thường', () => {
-    expect(khoaHoaDon({ kyHieu: '1c26mpd', soHd: '00000322', mstNguoiBan: '0109596976' })).toBe(
-      khoaHoaDon({ kyHieu: '1C26MPD', soHd: '322', mstNguoiBan: '0109596976' }),
+    expect(khoaHoaDon({ kyHieu: '1c26mpd', soHd: '00000322', mstNguoiBan: '0100000009' })).toBe(
+      khoaHoaDon({ kyHieu: '1C26MPD', soHd: '322', mstNguoiBan: '0100000009' }),
     )
     expect(khoaHoaDon({ kyHieu: '', soHd: '', mstNguoiBan: '' })).toBe('')
   })
