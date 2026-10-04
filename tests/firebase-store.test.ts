@@ -47,6 +47,7 @@ class MemStore implements DataStore {
   async deleteDossier(id: string) { this.d.delete(id) }
   async putFile(x: StoredFile) { this.f.set(x.id, x) }
   async getFile(id: string) { return this.f.get(id) }
+  async getFileInfo(id: string) { const f = this.f.get(id); if (!f) return undefined; const { data: _d, ...i } = f; return i }
   async deleteFile(id: string) { this.f.delete(id) }
   async listFiles() { return [...this.f.values()] }
   async getTemplate(k: TemplateKind) { return this.t.get(k) }
@@ -100,6 +101,7 @@ describe.skipIf(!ON)('FirebaseStore (Firebase giả lập)', () => {
     expect((await getBytes(sref(a.st, `users/${a.uid}/files/f1`))).byteLength).toBe(1_500_000)
     const back = await store.getFile('f1')
     expect(back?.name).toBe('hoa-don.pdf')
+    expect(await store.getFileInfo('f1')).toEqual({ id: 'f1', name: 'hoa-don.pdf', type: 'application/pdf', size: bytes.length, addedAt: 1 })
     const t0 = Date.now()
     const same = Buffer.from(await back!.data.arrayBuffer()).equals(Buffer.from(bytes))
     expect(same).toBe(true)

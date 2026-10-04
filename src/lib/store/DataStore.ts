@@ -1,5 +1,7 @@
 import type { Dossier, Settings, StoredFile, StoredTemplate, TemplateKind } from '../types'
 
+export type FileInfo = Omit<StoredFile, 'data'>
+
 /**
  * "Ổ cắm chuẩn" cho việc cất dữ liệu.
  *
@@ -22,6 +24,8 @@ export interface DataStore {
 
   putFile(f: StoredFile): Promise<void>
   getFile(id: string): Promise<StoredFile | undefined>
+  /** Chỉ thông tin file (tên, loại, cỡ) — không tải nội dung, dùng để hiện danh sách */
+  getFileInfo(id: string): Promise<FileInfo | undefined>
   deleteFile(id: string): Promise<void>
   listFiles(): Promise<StoredFile[]>
 

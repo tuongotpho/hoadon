@@ -12,4 +12,4 @@ export function setStore(s: DataStore) {
 }
 
 export { newId } from './DataStore'
-export type { DataStore } from './DataStore'
+export type { DataStore, FileInfo } from './DataStore'

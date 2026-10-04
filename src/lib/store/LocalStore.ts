@@ -63,6 +63,12 @@ export class LocalStore implements DataStore {
   async getFile(id: string) {
     return this.db.files.get(id)
   }
+  async getFileInfo(id: string) {
+    const f = await this.db.files.get(id)
+    if (!f) return undefined
+    const { data: _d, ...info } = f
+    return info
+  }
   async deleteFile(id: string) {
     await this.db.files.delete(id)
   }

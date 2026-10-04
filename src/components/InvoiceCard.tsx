@@ -5,7 +5,9 @@ import { parseInvoiceXml } from '../lib/invoiceXml'
 import { formatMoney, moneyInWords } from '../lib/numberToWords'
 import { chuKhopSo } from '../lib/rules'
 import { store } from '../lib/store'
-import type { Invoice, StoredFile } from '../lib/types'
+import type { FileInfo } from '../lib/store'
+import type { Invoice } from '../lib/types'
+import FileViewer from './FileViewer'
 import FileDrop from './FileDrop'
 import MoneyInput from './MoneyInput'
 import { bao, hoi } from '../lib/dialog'
@@ -18,18 +20,15 @@ interface Props {
   canTk: boolean // hồ sơ từ 5 triệu -> cần thông tin tài khoản
 }
 
-function openFile(f: StoredFile) {
-  const url = URL.createObjectURL(f.data)
-  window.open(url, '_blank')
-  setTimeout(() => URL.revokeObjectURL(url), 60000)
-}
 
 export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: Props) {
-  const [files, setFiles] = useState<StoredFile[]>([])
+  const [files, setFiles] = useState<FileInfo[]>([])
+  const [xem, setXem] = useState<FileInfo | null>(null)
   const [showItems, setShowItems] = useState(false)
 
   useEffect(() => {
-    Promise.all(inv.fileIds.map((id) => store.getFile(id))).then((r) => setFiles(r.filter((x): x is StoredFile => !!x)))
+    // chỉ đọc tên file — nội dung tải khi bấm xem
+    Promise.all(inv.fileIds.map((id) => store.getFileInfo(id))).then((r) => setFiles(r.filter((x): x is FileInfo => !!x)))
   }, [inv.fileIds])
 
   const set = <K extends keyof Invoice>(k: K, v: Invoice[K]) => onChange({ ...inv, [k]: v })
@@ -185,7 +184,7 @@ export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: P
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {files.map((f) => (
           <span key={f.id} className="inline-flex items-center gap-1 rounded border border-slate-300 bg-white px-2 py-0.5 text-xs">
-            <button className="text-blue-700 hover:underline" onClick={() => openFile(f)} title="Mở xem">
+            <button className="text-blue-700 hover:underline" onClick={() => setXem(f)} title="Mở xem">
               📎 {f.name}
             </button>
             <button className="text-slate-400 hover:text-red-600" onClick={() => removeFile(f.id)} title="Gỡ file">
@@ -197,6 +196,7 @@ export default function InvoiceCard({ index, inv, onChange, onRemove, canTk }: P
           + Đính kèm file (XML / PDF / ảnh)
         </FileDrop>
       </div>
+      {xem && <FileViewer info={xem} onClose={() => setXem(null)} />}
     </div>
   )
 }

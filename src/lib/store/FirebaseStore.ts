@@ -132,6 +132,12 @@ export class FirebaseStore implements DataStore {
     const data = m.path ? new Blob([await getBytes(sref(this.storage, m.path))]) : await this.readChunks('files', id, m.chunks ?? 0, m.type)
     return { id: m.id, name: m.name, type: m.type, size: m.size, addedAt: m.addedAt, data: m.type ? new Blob([data], { type: m.type }) : data }
   }
+  async getFileInfo(id: string) {
+    const s = await getDoc(this.ref('files', id))
+    if (!s.exists()) return undefined
+    const m = s.data() as StoredFile
+    return { id: m.id, name: m.name, type: m.type, size: m.size, addedAt: m.addedAt }
+  }
   async deleteFile(id: string) {
     const s = await getDoc(this.ref('files', id))
     const m = s.data() as { path?: string; chunks?: number } | undefined
