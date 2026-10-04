@@ -42,6 +42,11 @@ export async function exportBackup(store: DataStore): Promise<Blob> {
   return zip.generate({ type: 'blob', compression: 'DEFLATE' }) as Blob
 }
 
+/** Chép toàn bộ dữ liệu từ chỗ này sang chỗ khác (vd từ máy lên tài khoản Firebase). */
+export async function copyAll(from: DataStore, to: DataStore): Promise<RestoreResult> {
+  return importBackup(to, await exportBackup(from))
+}
+
 export interface RestoreResult {
   dossiers: number
   files: number

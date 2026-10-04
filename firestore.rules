@@ -1,0 +1,11 @@
+rules_version = '2';
+
+// Quy tắc cho database "hoadon" (dự án app-from-ai dùng chung với app khác — file này CHỈ áp cho "hoadon").
+// Mỗi tài khoản Google chỉ đọc/ghi được dữ liệu của chính mình: users/{uid}/...
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid}/{document=**} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+    }
+  }
+}

@@ -9,13 +9,16 @@
     "typecheck": "tsc --noEmit",
     "gan-o-mau": "node scripts/gan-o-mau.mjs",
     "app": "vite build && electron .",
-    "dong-goi": "tsc --noEmit && vite build && electron-builder --win"
+    "dong-goi": "tsc --noEmit && vite build && electron-builder --win",
+    "test:firebase": "firebase emulators:exec --only auth,firestore --project demo-hoadon \"vitest run tests/firebase-store.test.ts\"",
+    "deploy:rules": "firebase deploy --only firestore:hoadon --project app-from-ai"
   },
   "keywords": [],
   "author": "Kỹ thuật – An toàn",
   "license": "ISC",
   "description": "Quản lý hóa đơn, tờ trình và đề nghị thanh toán",
   "devDependencies": {
+    "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/file-saver": "^2.0.7",
     "@types/react": "^19.3.0",
@@ -27,6 +30,7 @@
     "electron": "^44.5.1",
     "electron-builder": "^26.15.3",
     "file-saver": "^2.0.5",
+    "firebase": "^12.19.0",
     "jsdom": "^29.1.1",
     "lodash": "^4.18.1",
     "pdfjs-dist": "^6.3.289",
