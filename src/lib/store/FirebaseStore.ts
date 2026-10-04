@@ -2,6 +2,7 @@ import {
   Bytes, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, setDoc, writeBatch,
   type Firestore, type Unsubscribe,
 } from 'firebase/firestore'
+import { deleteObject, getBytes, ref as sref, uploadBytes, type FirebaseStorage } from 'firebase/storage'
 import { normalizeDossier } from '../model'
 import { DEFAULT_SETTINGS, type Dossier, type Settings, type StoredFile, type StoredTemplate, type TemplateKind } from '../types'
 import type { DataStore } from './DataStore'
@@ -11,11 +12,11 @@ import type { DataStore } from './DataStore'
  *
  * Mọi thứ nằm dưới users/{uid}/… — quy tắc bảo mật chỉ cho chủ tài khoản đọc/ghi.
  *   users/{uid}/dossiers/{id}            hồ sơ
- *   users/{uid}/files/{id}               thông tin file (+ chunks/{i}: nội dung, mỗi mảnh ≤ 700 KB)
- *   users/{uid}/templates/{kind}         mẫu Word (+ chunks/{i})
+ *   users/{uid}/files/{id}               thông tin file; NỘI DUNG file nằm ở Storage, kho riêng "hoadon-npsc":
+ *                                          gs://hoadon-npsc/users/{uid}/files/{id}
+ *   users/{uid}/templates/{kind}         mẫu Word (nhỏ, cắt mảnh ngay trong Firestore: chunks/{i} ≤ 700 KB)
  *   users/{uid}/meta/settings            cài đặt
- * File cất ngay trong Firestore (cắt mảnh vì mỗi bản ghi tối đa 1 MB) — không dùng Firebase Storage
- * vì kho Storage dùng chung cả dự án với app khác.
+ * File cũ nào cất kiểu cắt mảnh trong Firestore (có trường chunks) vẫn đọc/xóa được.
  */
 const CHUNK = 700 * 1024
 
@@ -23,11 +24,17 @@ export class FirebaseStore implements DataStore {
   private listeners = new Set<() => void>()
   private unsubs: Unsubscribe[] = []
   private db: Firestore
+  private storage: FirebaseStorage
   private uid: string
 
-  constructor(db: Firestore, uid: string) {
+  constructor(db: Firestore, storage: FirebaseStorage, uid: string) {
     this.db = db
+    this.storage = storage
     this.uid = uid
+  }
+
+  private fileRef(id: string) {
+    return sref(this.storage, `users/${this.uid}/files/${id}`)
   }
 
   private col(name: string) {
@@ -113,16 +120,27 @@ export class FirebaseStore implements DataStore {
 
   // ── File hóa đơn ──
   async putFile(f: StoredFile) {
-    await this.putChunks('files', f.id, f.data, { id: f.id, name: f.name, type: f.type, size: f.size, addedAt: f.addedAt })
+    // nội dung lên Storage trước, thông tin vào Firestore sau — không có bản ghi trỏ tới file chưa tồn tại
+    const r = this.fileRef(f.id)
+    await uploadBytes(r, f.data, { contentType: f.type || 'application/octet-stream', customMetadata: { name: encodeURIComponent(f.name) } })
+    await setDoc(this.ref('files', f.id), { id: f.id, name: f.name, type: f.type, size: f.size, addedAt: f.addedAt, path: r.fullPath })
   }
   async getFile(id: string) {
     const s = await getDoc(this.ref('files', id))
     if (!s.exists()) return undefined
-    const m = s.data() as Omit<StoredFile, 'data'> & { chunks: number }
-    return { id: m.id, name: m.name, type: m.type, size: m.size, addedAt: m.addedAt, data: await this.readChunks('files', id, m.chunks, m.type) }
+    const m = s.data() as Omit<StoredFile, 'data'> & { chunks?: number; path?: string }
+    const data = m.path ? new Blob([await getBytes(sref(this.storage, m.path))]) : await this.readChunks('files', id, m.chunks ?? 0, m.type)
+    return { id: m.id, name: m.name, type: m.type, size: m.size, addedAt: m.addedAt, data: m.type ? new Blob([data], { type: m.type }) : data }
   }
   async deleteFile(id: string) {
-    await this.deleteChunks('files', id)
+    const s = await getDoc(this.ref('files', id))
+    const m = s.data() as { path?: string; chunks?: number } | undefined
+    if (m?.path) {
+      await deleteObject(sref(this.storage, m.path)).catch((e) => {
+        if ((e as { code?: string }).code !== 'storage/object-not-found') throw e
+      })
+    }
+    if (m?.chunks) await this.deleteChunks('files', id)
     await deleteDoc(this.ref('files', id))
   }
   async listFiles() {

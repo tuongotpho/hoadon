@@ -6,7 +6,8 @@
  */
 import { deleteApp, initializeApp, type FirebaseApp } from 'firebase/app'
 import { connectAuthEmulator, getAuth, signInAnonymously } from 'firebase/auth'
-import { connectFirestoreEmulator, doc, getDoc, initializeFirestore, memoryLocalCache, type Firestore } from 'firebase/firestore'
+import { Bytes, connectFirestoreEmulator, doc, getDoc, initializeFirestore, memoryLocalCache, setDoc, type Firestore } from 'firebase/firestore'
+import { connectStorageEmulator, getBytes, getStorage, ref as sref, type FirebaseStorage } from 'firebase/storage'
 import { afterAll, beforeAll, describe, expect, it } from 'vitest'
 import { copyAll } from '../src/lib/backup'
 import { emptyDossier, emptyInvoice } from '../src/lib/model'
@@ -17,7 +18,9 @@ import { DEFAULT_SETTINGS, type Dossier, type Settings, type StoredFile, type St
 const ON = !!process.env.FIRESTORE_EMULATOR_HOST
 const apps: FirebaseApp[] = []
 
-async function user(name: string): Promise<{ db: Firestore; uid: string }> {
+type U = { db: Firestore; st: FirebaseStorage; uid: string }
+
+async function user(name: string): Promise<U> {
   const app = initializeApp({ projectId: 'demo-hoadon', apiKey: 'gia-lap' }, name)
   apps.push(app)
   const auth = getAuth(app)
@@ -26,7 +29,10 @@ async function user(name: string): Promise<{ db: Firestore; uid: string }> {
   const db = initializeFirestore(app, { localCache: memoryLocalCache() }, 'hoadon')
   const [host, port] = process.env.FIRESTORE_EMULATOR_HOST!.split(':')
   connectFirestoreEmulator(db, host, Number(port))
-  return { db, uid: user.uid }
+  const st = getStorage(app, 'gs://hoadon-npsc')
+  const [sh, sp] = process.env.FIREBASE_STORAGE_EMULATOR_HOST!.split(':')
+  connectStorageEmulator(st, sh, Number(sp))
+  return { db, st, uid: user.uid }
 }
 
 // Kho tạm trong bộ nhớ, đóng vai "dữ liệu trên máy" để thử chuyển lên tài khoản
@@ -54,14 +60,14 @@ class MemStore implements DataStore {
 const bigBytes = (n: number) => Uint8Array.from({ length: n }, (_, i) => (i * 7 + 3) % 256)
 
 describe.skipIf(!ON)('FirebaseStore (Firebase giả lập)', () => {
-  let a: { db: Firestore; uid: string }
-  let b: { db: Firestore; uid: string }
+  let a: U
+  let b: U
   let store: FirebaseStore
 
   beforeAll(async () => {
     a = await user('nguoi-a')
     b = await user('nguoi-b')
-    store = new FirebaseStore(a.db, a.uid)
+    store = new FirebaseStore(a.db, a.st, a.uid)
   }, 30000)
 
   afterAll(async () => {
@@ -85,11 +91,13 @@ describe.skipIf(!ON)('FirebaseStore (Firebase giả lập)', () => {
     expect(await store.getDossier(d2.id)).toBeUndefined()
   })
 
-  it('file 1,5 MB: cắt 3 mảnh, đọc lại đúng từng byte, xóa sạch mảnh', async () => {
+  it('file 1,5 MB: cất vào Storage hoadon-npsc, đọc lại đúng từng byte, xóa sạch', async () => {
     const bytes = bigBytes(1_500_000)
     await store.putFile({ id: 'f1', name: 'hoa-don.pdf', type: 'application/pdf', size: bytes.length, addedAt: 1, data: new Blob([bytes]) })
     const meta = await getDoc(doc(a.db, 'users', a.uid, 'files', 'f1'))
-    expect(meta.get('chunks')).toBe(3)
+    expect(meta.get('path')).toBe(`users/${a.uid}/files/f1`)
+    expect(meta.get('chunks')).toBeUndefined()
+    expect((await getBytes(sref(a.st, `users/${a.uid}/files/f1`))).byteLength).toBe(1_500_000)
     const back = await store.getFile('f1')
     expect(back?.name).toBe('hoa-don.pdf')
     const t0 = Date.now()
@@ -98,8 +106,16 @@ describe.skipIf(!ON)('FirebaseStore (Firebase giả lập)', () => {
     console.log(`  (đọc + so 1,5 MB: ${Date.now() - t0} ms)`)
     await store.deleteFile('f1')
     expect(await store.getFile('f1')).toBeUndefined()
-    expect((await getDoc(doc(a.db, 'users', a.uid, 'files', 'f1', 'chunks', '0'))).exists()).toBe(false)
+    await expect(getBytes(sref(a.st, `users/${a.uid}/files/f1`))).rejects.toMatchObject({ code: 'storage/object-not-found' })
   }, 60000)
+
+  it('file cũ cất kiểu cắt mảnh trong Firestore vẫn đọc và xóa được', async () => {
+    await setDoc(doc(a.db, 'users', a.uid, 'files', 'cu', 'chunks', '0'), { i: 0, data: Bytes.fromUint8Array(bigBytes(10)) })
+    await setDoc(doc(a.db, 'users', a.uid, 'files', 'cu'), { id: 'cu', name: 'cu.pdf', type: 'application/pdf', size: 10, addedAt: 1, chunks: 1 })
+    expect((await store.getFile('cu'))?.data.size).toBe(10)
+    await store.deleteFile('cu')
+    expect(await store.getFile('cu')).toBeUndefined()
+  })
 
   it('mẫu Word: lưu, ghi đè bản nhỏ hơn không sót mảnh cũ', async () => {
     await store.putTemplate({ kind: 'dntt', name: 'to.docx', uploadedAt: 1, data: new Blob([bigBytes(800_000)]) })
@@ -112,10 +128,14 @@ describe.skipIf(!ON)('FirebaseStore (Firebase giả lập)', () => {
 
   it('BẢO MẬT: tài khoản khác không đọc, không ghi được dữ liệu của anh', async () => {
     await expect(getDoc(doc(b.db, 'users', a.uid, 'meta', 'settings'))).rejects.toMatchObject({ code: 'permission-denied' })
-    const bStoreTrenDuLieuA = new FirebaseStore(b.db, a.uid)
+    const bStoreTrenDuLieuA = new FirebaseStore(b.db, b.st, a.uid)
     await expect(bStoreTrenDuLieuA.saveDossier(emptyDossier())).rejects.toMatchObject({ code: 'permission-denied' })
+    // file PDF của a trong Storage: b không tải được, không ghi đè được
+    await store.putFile({ id: 'pdf-a', name: 'a.pdf', type: 'application/pdf', size: 3, addedAt: 1, data: new Blob([bigBytes(3)]) })
+    await expect(getBytes(sref(b.st, `users/${a.uid}/files/pdf-a`))).rejects.toMatchObject({ code: 'storage/unauthorized' })
+    await expect(bStoreTrenDuLieuA.putFile({ id: 'pdf-a', name: 'x', type: '', size: 1, addedAt: 1, data: new Blob([bigBytes(1)]) })).rejects.toMatchObject({ code: 'storage/unauthorized' })
     // còn dữ liệu của chính b thì b đọc/ghi bình thường
-    const bStore = new FirebaseStore(b.db, b.uid)
+    const bStore = new FirebaseStore(b.db, b.st, b.uid)
     await bStore.saveSettings(DEFAULT_SETTINGS)
     expect((await bStore.getSettings()).nguongTien).toBe(5000000)
   })
@@ -141,7 +161,7 @@ describe.skipIf(!ON)('FirebaseStore (Firebase giả lập)', () => {
     await may.saveSettings({ ...DEFAULT_SETTINGS, dsNhiemVu: ['quản lý CBM', 'nhiệm vụ mới'] })
 
     const c = await user('nguoi-c')
-    const cloud = new FirebaseStore(c.db, c.uid)
+    const cloud = new FirebaseStore(c.db, c.st, c.uid)
     const r = await copyAll(may, cloud)
     expect(r).toEqual({ dossiers: 1, files: 1, templates: 1 })
     expect((await cloud.getDossier(hs.id))?.invoices[0].tongTien).toBe(19034010)

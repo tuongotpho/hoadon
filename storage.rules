@@ -1,0 +1,13 @@
+rules_version = '2';
+
+// Quy tắc cho kho file "hoadon-npsc" (CHỈ kho này — các kho khác của dự án không bị ảnh hưởng).
+// Mỗi tài khoản Google chỉ đọc/ghi/xóa file trong users/{uid}/ của mình; mỗi file tối đa 20 MB.
+service firebase.storage {
+  match /b/{bucket}/o {
+    match /users/{uid}/{allPaths=**} {
+      allow read, delete: if request.auth != null && request.auth.uid == uid;
+      allow create, update: if request.auth != null && request.auth.uid == uid
+                            && request.resource.size < 20 * 1024 * 1024;
+    }
+  }
+}

@@ -10,8 +10,8 @@
     "gan-o-mau": "node scripts/gan-o-mau.mjs",
     "app": "vite build && electron .",
     "dong-goi": "tsc --noEmit && vite build && electron-builder --win",
-    "test:firebase": "firebase emulators:exec --only auth,firestore --project demo-hoadon \"vitest run tests/firebase-store.test.ts\"",
-    "deploy:rules": "firebase deploy --only firestore:hoadon --project app-from-ai"
+    "test:firebase": "firebase emulators:exec --only auth,firestore,storage --project demo-hoadon \"vitest run tests/firebase-store.test.ts\"",
+    "deploy:rules": "firebase deploy --only firestore:hoadon,storage:hoadon --project app-from-ai"
   },
   "keywords": [],
   "author": "Kỹ thuật – An toàn",

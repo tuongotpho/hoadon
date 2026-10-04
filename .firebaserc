@@ -1,5 +1,17 @@
 {
   "projects": {
     "default": "app-from-ai"
+  },
+  "targets": {
+    "app-from-ai": {
+      "storage": {
+        "hoadon": ["hoadon-npsc"]
+      }
+    },
+    "demo-hoadon": {
+      "storage": {
+        "hoadon": ["hoadon-npsc"]
+      }
+    }
   }
 }

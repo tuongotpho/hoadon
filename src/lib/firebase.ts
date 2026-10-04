@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app'
 import { getAuth, GoogleAuthProvider, onAuthStateChanged, signInWithPopup, signOut, type User } from 'firebase/auth'
 import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore'
+import { getStorage } from 'firebase/storage'
 import { FirebaseStore } from './store/FirebaseStore'
 
 // Mã cấu hình web của Firebase — loại được phép công khai (chỉ để nhận diện dự án).
@@ -20,6 +21,9 @@ export const auth = getAuth(app)
 // Database riêng "hoadon" (dự án dùng chung với app khác). Có bộ nhớ đệm trên máy: mất mạng vẫn dùng được.
 const db = initializeFirestore(app, { localCache: persistentLocalCache({ tabManager: persistentMultipleTabManager() }) }, 'hoadon')
 
+// Kho file riêng "hoadon-npsc" (PDF/XML/ảnh hóa đơn) — quy tắc riêng trong storage.rules
+const storage = getStorage(app, 'gs://hoadon-npsc')
+
 export function onUser(cb: (u: User | null) => void) {
   return onAuthStateChanged(auth, cb)
 }
@@ -33,5 +37,5 @@ export async function dangXuat() {
 }
 
 export function storeFor(u: User) {
-  return new FirebaseStore(db, u.uid)
+  return new FirebaseStore(db, storage, u.uid)
 }
