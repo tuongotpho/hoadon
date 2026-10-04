@@ -100,6 +100,33 @@ try {
   }
   check('Xuất 2 file Word vào thư mục xuất', files.length === 2, files.map((f) => `${f} (${statSync(path.join(exportDir, f)).size} byte)`).join(', '))
 
+  // ── Nhập hóa đơn cũ hàng loạt ──
+  const xml = readFileSync('tests/fixtures/hoa-don-tt78.xml').toString('base64')
+  const nhap = await evaluate(`(async () => {
+    const wait = (ms) => new Promise(r => setTimeout(r, ms))
+    const btn = (t) => [...document.querySelectorAll('button')].find(b => b.innerText.includes(t))
+    btn('Danh sách')?.click(); await wait(800)
+    btn('Nhập hóa đơn cũ').click(); await wait(500)
+    const f = (b64, name, type) => new File([Uint8Array.from(atob(b64), c => c.charCodeAt(0))], name, { type })
+    const dt = new DataTransfer()
+    dt.items.add(f(${JSON.stringify(pdf)}, 'C26MAA994.pdf', 'application/pdf'))
+    dt.items.add(f(${JSON.stringify(xml)}, 'HD-123.xml', 'text/xml'))
+    dt.items.add(f(${JSON.stringify(xml)}, 'ban-sao-HD-123.xml', 'text/xml'))
+    const input = document.querySelector('input[type=file]'); input.files = dt.files
+    input.dispatchEvent(new Event('change', { bubbles: true }))
+    for (let i = 0; i < 60 && !document.body.innerText.includes('Kết quả:'); i++) await wait(250)
+    const rows = [...document.querySelectorAll('tbody tr')].map(r => r.innerText.replace(/\\s+/g, ' '))
+    btn('✓ Đã thanh toán')?.click(); await wait(800)
+    const sauBam = document.body.innerText.match(/Đã thanh toán: [\\d.]+ đ/)?.[0]
+    btn('Danh sách').click(); await wait(800)
+    document.querySelector('select').value = 'all'; document.querySelector('select').dispatchEvent(new Event('change', { bubbles: true })); await wait(500)
+    const ds = [...document.querySelectorAll('tbody tr')].map(r => r.innerText.replace(/\\s+/g, ' '))
+    return { tieuDe: document.body.innerText.match(/Kết quả:[^\\n]*/)?.[0], rows, sauBam, ds }
+  })()`)
+  check('Nhập 3 file: 1 mới + 2 bỏ qua (994 đã có, bản sao 123)', nhap.rows.filter((r) => r.includes('bỏ qua')).length === 2 && nhap.rows.length === 3, nhap.rows.join(' || '))
+  check('Bấm "Đã thanh toán" ở bảng kết quả', nhap.sauBam === 'Đã thanh toán: 1.188.000 đ', nhap.sauBam)
+  check('Danh sách có nhãn HĐ cũ, trạng thái Đã thanh toán', nhap.ds.some((r) => r.toLowerCase().includes('hđ cũ') && r.includes('Đã thanh toán')), nhap.ds.join(' || '))
+
   ws.close()
   killApp()
   await sleep(2000)

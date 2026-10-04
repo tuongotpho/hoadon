@@ -23,6 +23,7 @@ export const STATUS_COLOR: Record<StatusKey, string> = {
 
 export function statusOf(d: Dossier): StatusKey {
   if (d.ngayKeToanTt) return 'daTt'
+  if (d.hoSoCu) return 'choKt' // hóa đơn cũ: chỉ có đã / chưa thanh toán
   if (d.ngayNopKeToan) return 'choKt'
   if (d.ngayToTrinh && d.ngayDntt) return 'choNop'
   if (d.invoices.length === 0) return 'chuaHd'
@@ -55,6 +56,16 @@ export function suggestDnttDate(d: Dossier): string {
 /** Các điểm bất thường cần anh để ý. */
 export function warningsOf(d: Dossier, s: Settings): string[] {
   const w: string[] = []
+  if (d.hoSoCu) {
+    // Hóa đơn cũ: không bắt tờ trình / nội dung / thông tin TK — chỉ báo lỗi số liệu và hàng cấm
+    const cam = timHangCam(d.invoices, s.tuKhoaCam)
+    if (cam.length) w.push(`Có rượu/bia trên hóa đơn (${cam.map((c) => c.ten).join(', ')})`)
+    for (const i of d.invoices) {
+      if (!i.tongTien) w.push(`HĐ ${i.soHd || '?'}: chưa có tổng tiền`)
+      if (!chuKhopSo(i)) w.push(`HĐ ${i.soHd || '?'}: số tiền bằng chữ trên hóa đơn KHÔNG khớp tổng tiền`)
+    }
+    return w
+  }
   const hd = firstInvoiceDate(d)
   if (d.ngayToTrinh && hd && d.ngayToTrinh > hd) w.push('Ngày tờ trình đang SAU ngày hóa đơn')
   if (d.ngayDntt && hd && d.ngayDntt < hd) w.push('Ngày ĐNTT đang TRƯỚC ngày hóa đơn')

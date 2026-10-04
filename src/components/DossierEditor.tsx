@@ -191,6 +191,24 @@ Anh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`,
         </button>
       </div>
 
+      {d.hoSoCu && (
+        <div className="flex flex-wrap items-center gap-3 rounded-lg border border-slate-300 bg-slate-100 p-3 text-sm text-slate-700">
+          <span>
+            📥 <b>Hóa đơn cũ trong kho</b> — chỉ cần số tiền và tình trạng thanh toán; không bắt buộc tờ trình, nội dung hay thông tin tài khoản.
+          </span>
+          {d.ngayKeToanTt ? (
+            <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-800">✓ Đã thanh toán {fmtDate(d.ngayKeToanTt)}</span>
+          ) : (
+            <button className="btn-primary !py-1" onClick={() => set('ngayKeToanTt', today())}>
+              ✓ Đã thanh toán
+            </button>
+          )}
+          <button className="ml-auto text-xs text-blue-600 hover:underline" onClick={() => set('hoSoCu', false)}>
+            Chuyển thành hồ sơ thanh toán đầy đủ (làm tờ trình / ĐNTT)
+          </button>
+        </div>
+      )}
+
       {warnings.length > 0 && (
         <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-sm text-red-700">
           {warnings.map((w) => (

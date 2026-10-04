@@ -57,6 +57,7 @@ export interface Dossier {
   ngayKeToanTt: string
 
   hinhThucTt: string // Chuyển khoản / Tiền mặt
+  hoSoCu: boolean // hóa đơn cũ nhập vào kho: chỉ cần tiền + đã/chưa thanh toán, không bắt buộc tờ trình/TK
   createdAt: number
   updatedAt: number
 }

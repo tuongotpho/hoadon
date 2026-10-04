@@ -11,6 +11,7 @@ import {
 import { store } from '../lib/store'
 import type { Dossier } from '../lib/types'
 import FileDrop from './FileDrop'
+import NhapHoaDonCu from './NhapHoaDonCu'
 import { bao } from '../lib/dialog'
 
 const ORDER: StatusKey[] = ['chuaHd', 'choLamHs', 'choNop', 'choKt', 'daTt']
@@ -18,7 +19,8 @@ const ORDER: StatusKey[] = ['chuaHd', 'choLamHs', 'choNop', 'choKt', 'daTt']
 export default function DossierList({ onOpen }: { onOpen: (id: string) => void }) {
   const list = useDossiers()
   const settings = useSettings()
-  const [filter, setFilter] = useState<StatusKey | 'all' | 'chuaXong'>('chuaXong')
+  const [filter, setFilter] = useState<StatusKey | 'all' | 'chuaXong' | 'cu'>('chuaXong')
+  const [nhapCu, setNhapCu] = useState(false)
   const [q, setQ] = useState('')
   const [busy, setBusy] = useState(false)
 
@@ -37,7 +39,8 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
     return (list ?? []).filter((d) => {
       const s = statusOf(d)
       if (filter === 'chuaXong' && s === 'daTt') return false
-      if (filter !== 'all' && filter !== 'chuaXong' && s !== filter) return false
+      if (filter === 'cu' && !d.hoSoCu) return false
+      if (filter !== 'all' && filter !== 'chuaXong' && filter !== 'cu' && s !== filter) return false
       if (!kw) return true
       const hay = [d.noiDung, d.soToTrinh, d.soDntt, ...d.invoices.flatMap((i) => [i.soHd, i.tenNguoiBan, i.mstNguoiBan])]
         .join(' ')
@@ -70,6 +73,8 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
   async function quickSet(d: Dossier, field: 'ngayNopKeToan' | 'ngayKeToanTt') {
     await store.saveDossier({ ...d, [field]: today(), updatedAt: Date.now() })
   }
+
+  if (nhapCu) return <NhapHoaDonCu onClose={() => setNhapCu(false)} onOpen={onOpen} />
 
   if (!list) return <p className="text-slate-500">Đang tải…</p>
 
@@ -109,6 +114,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
         <select className="inp w-auto" value={filter} onChange={(e) => setFilter(e.target.value as typeof filter)}>
           <option value="chuaXong">Chưa thanh toán xong</option>
           <option value="all">Tất cả</option>
+          <option value="cu">Hóa đơn cũ (nhập vào kho)</option>
           {ORDER.map((k) => (
             <option key={k} value={k}>
               {STATUS_LABEL[k]}
@@ -118,6 +124,9 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
         <div className="ml-auto flex gap-2">
           <button className="btn" onClick={() => downloadBlob(dossiersToCsv(shown), `So theo doi hoa don ${today()}.csv`)}>
             ⬇ Xuất Excel
+          </button>
+          <button className="btn" onClick={() => setNhapCu(true)} title="Thả nhiều hóa đơn cũ vào kho, chỉ cần số tiền + tình trạng thanh toán">
+            📥 Nhập hóa đơn cũ
           </button>
           <button className="btn-primary" onClick={() => createNew()} disabled={busy}>
             + Hồ sơ mới (nhập tay)
@@ -155,7 +164,10 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
               return (
                 <tr key={d.id} className="cursor-pointer border-t border-slate-100 hover:bg-blue-50/50" onClick={() => onOpen(d.id)}>
                   <td className="max-w-xs px-3 py-2">
-                    <div className="truncate font-medium text-slate-800">{d.noiDung || <i className="text-slate-400">(chưa đặt nội dung)</i>}</div>
+                    <div className="truncate font-medium text-slate-800">
+                      {d.hoSoCu && <span className="mr-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">HĐ cũ</span>}
+                      {d.noiDung || (d.hoSoCu ? d.invoices[0]?.tenNguoiBan : '') || <i className="text-slate-400">(chưa đặt nội dung)</i>}
+                    </div>
                     {w.length > 0 && <div className="truncate text-xs text-red-600" title={w.join('\n')}>⚠ {w[0]}{w.length > 1 && ` (+${w.length - 1})`}</div>}
                   </td>
                   <td className="px-3 py-2 text-xs text-slate-600">
@@ -181,7 +193,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
                     ) : ''}
                   </td>
                   <td className="px-3 py-2">
-                    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[st]}`}>{STATUS_LABEL[st]}</span>
+                    <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${STATUS_COLOR[st]}`}>{d.hoSoCu && st === 'choKt' ? 'Chưa thanh toán' : STATUS_LABEL[st]}</span>
                     {wait != null && wait > 0 && <div className="mt-0.5 text-xs text-slate-400">chờ {wait} ngày</div>}
                   </td>
                 </tr>

@@ -1,7 +1,7 @@
 import { parseInvoiceXml } from './invoiceXml'
 import { moTaHangCam, timHangCam } from './hangCam'
 import { parseInvoiceText } from './invoicePdf'
-import { emptyInvoice } from './model'
+import { emptyDossier, emptyInvoice } from './model'
 import { newId, store } from './store'
 import type { Invoice, StoredFile } from './types'
 
@@ -123,4 +123,67 @@ export async function cleanOrphanFiles(): Promise<number> {
   const orphans = (await store.listFiles()).filter((f) => !used.has(f.id) && f.addedAt < old)
   for (const f of orphans) await store.deleteFile(f.id)
   return orphans.length
+}
+
+// ───────────── Nhập hàng loạt hóa đơn cũ ─────────────
+
+export interface KetQuaNhap {
+  tenFile: string // các file của hóa đơn này (XML + PDF cùng tên gộp làm một)
+  dossierId?: string // hồ sơ đã tạo (không có nếu trùng / lỗi)
+  soHd: string
+  kyHieu: string
+  ngayHd: string
+  nguoiBan: string
+  tongTien: number
+  trung?: boolean // đã có trong kho
+  loi?: string
+  ghiChu?: string // cảnh báo rượu/bia, đọc PDF…
+}
+
+/** Khóa nhận diện 1 hóa đơn: ký hiệu + số + MST người bán (thiếu thì không dò trùng được). */
+export function khoaHoaDon(i: Pick<Invoice, 'kyHieu' | 'soHd' | 'mstNguoiBan'>): string {
+  if (!i.soHd || (!i.kyHieu && !i.mstNguoiBan)) return ''
+  return [i.kyHieu.trim().toUpperCase(), String(Number(i.soHd) || i.soHd.trim()), i.mstNguoiBan.trim()].join('|')
+}
+
+/**
+ * Nhập nhiều hóa đơn cũ: mỗi hóa đơn -> 1 hồ sơ "hoSoCu" (chỉ cần tiền + đã/chưa thanh toán).
+ * File XML và PDF trùng tên gốc được gộp vào cùng một hóa đơn. Hóa đơn đã có trong kho thì bỏ qua.
+ */
+export async function nhapHoaDonCu(files: File[], onTienDo?: (xong: number, tong: number) => void): Promise<KetQuaNhap[]> {
+  const base = (n: string) => n.replace(/\.[^.]+$/, '').toLowerCase()
+  const nhom = new Map<string, File[]>()
+  for (const f of files) nhom.set(base(f.name), [...(nhom.get(base(f.name)) ?? []), f])
+
+  const daCo = new Set((await store.listDossiers()).flatMap((d) => d.invoices.map(khoaHoaDon)).filter(Boolean))
+  const out: KetQuaNhap[] = []
+  let xong = 0
+  for (const g of nhom.values()) {
+    const tenFile = g.map((f) => f.name).join(' + ')
+    try {
+      const { invoices, errors, notes } = await filesToInvoices(g)
+      for (const inv of invoices) {
+        const kq: KetQuaNhap = {
+          tenFile, soHd: inv.soHd, kyHieu: inv.kyHieu, ngayHd: inv.ngayHd, nguoiBan: inv.tenNguoiBan, tongTien: inv.tongTien,
+          loi: errors.join('; ') || undefined,
+          ghiChu: notes.filter((n) => n.includes('RƯỢU')).map(() => 'Có rượu/bia').join('') || undefined,
+        }
+        const k = khoaHoaDon(inv)
+        if (k && daCo.has(k)) {
+          kq.trung = true
+          for (const fid of inv.fileIds) await store.deleteFile(fid) // không giữ file của bản trùng
+        } else {
+          const d = { ...emptyDossier(), hoSoCu: true, invoices: [inv] }
+          await store.saveDossier(d)
+          kq.dossierId = d.id
+          if (k) daCo.add(k)
+        }
+        out.push(kq)
+      }
+    } catch (e) {
+      out.push({ tenFile, soHd: '', kyHieu: '', ngayHd: '', nguoiBan: '', tongTien: 0, loi: (e as Error).message })
+    }
+    onTienDo?.(++xong, nhom.size)
+  }
+  return out
 }
