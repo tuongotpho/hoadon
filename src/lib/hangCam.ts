@@ -1,4 +1,4 @@
-import type { Invoice } from './types'
+import type { Invoice } from './types.js'
 
 /**
  * Dò hàng CẤM trên hóa đơn (quy định: không thanh toán rượu/bia).

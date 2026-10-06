@@ -1,4 +1,4 @@
-import { TU_KHOA_CAM_MAC_DINH } from './hangCam'
+import { TU_KHOA_CAM_MAC_DINH } from './hangCam.js'
 
 // Một dòng hàng hóa / dịch vụ trên hóa đơn
 export interface InvoiceItem {

@@ -19,4 +19,4 @@ export function setStore(s: DataStore) {
 }
 
 export { newId } from './DataStore'
-export type { DataStore, FileInfo } from './DataStore'
+export type { DataStore, DongNhatKyAI, FileInfo, PhienAI } from './DataStore'

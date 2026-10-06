@@ -3,14 +3,15 @@
   "version": "1.0.1",
   "scripts": {
     "dev": "vite",
-    "build": "tsc --noEmit && vite build",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.mcp.json && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.mcp.json",
     "gan-o-mau": "node scripts/gan-o-mau.mjs",
-    "test:firebase": "firebase emulators:exec --only auth,firestore,storage --project demo-hoadon \"vitest run tests/firebase-store.test.ts\"",
+    "test:firebase": "firebase emulators:exec --only auth,firestore,storage --project demo-hoadon \"vitest run tests/firebase-store.test.ts tests/mcp-firebase.test.ts\"",
     "deploy:rules": "firebase deploy --only firestore:hoadon,storage:hoadon --project app-from-ai",
-    "deploy": "npm run build && firebase deploy --only hosting:hoadon-npsc --project app-from-ai"
+    "deploy": "npm run build && firebase deploy --only hosting:hoadon-npsc --project app-from-ai",
+    "mcp:web": "tsx mcp/chayWeb.ts"
   },
   "keywords": [],
   "author": "Kỹ thuật – An toàn",
@@ -20,6 +21,7 @@
     "@firebase/rules-unit-testing": "^5.0.2",
     "@tailwindcss/vite": "^4.3.3",
     "@types/file-saver": "^2.0.7",
+    "@types/node": "^26.6.4",
     "@types/react": "^19.3.0",
     "@types/react-dom": "^19.3.0",
     "@vitejs/plugin-react": "^6.1.1",
@@ -40,5 +42,10 @@
     "vitest": "^5.0.3"
   },
   "private": true,
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.32.1",
+    "@xmldom/xmldom": "^0.9.12",
+    "zod": "^4.6.5"
+  }
 }

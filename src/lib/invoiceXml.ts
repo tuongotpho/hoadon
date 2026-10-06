@@ -1,4 +1,4 @@
-import type { HdLienQuan, Invoice, InvoiceItem } from './types'
+import type { HdLienQuan, Invoice, InvoiceItem } from './types.js'
 
 /**
  * Đọc file XML hóa đơn điện tử theo chuẩn Tổng cục Thuế (TT78/2021, NĐ123):

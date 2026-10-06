@@ -1,8 +1,8 @@
-import { addWorkingDays, daysBetween, today } from './dates'
-import { timHangCam } from './hangCam'
-import { biLienQuan, moTaBiLienQuan, type BanDoThayThe } from './thayThe'
-import { canThongTinTk, chuKhopSo, duTruOf, sumInvoices } from './rules'
-import type { Dossier, Settings } from './types'
+import { addWorkingDays, daysBetween, today } from './dates.js'
+import { timHangCam } from './hangCam.js'
+import { biLienQuan, moTaBiLienQuan, type BanDoThayThe } from './thayThe.js'
+import { canThongTinTk, chuKhopSo, duTruOf, sumInvoices } from './rules.js'
+import type { Dossier, Settings } from './types.js'
 
 export type StatusKey = 'chuaHd' | 'choLamHs' | 'choNop' | 'choKt' | 'daTt'
 

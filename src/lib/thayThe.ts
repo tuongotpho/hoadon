@@ -1,4 +1,4 @@
-import type { Dossier, HdLienQuan, Invoice } from './types'
+import type { Dossier, HdLienQuan, Invoice } from './types.js'
 
 /**
  * Quan hệ "hóa đơn thay thế / điều chỉnh" giữa các hóa đơn trong kho.

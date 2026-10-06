@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { exportBackup, importBackup } from '../lib/backup'
 import { today } from '../lib/dates'
 import { downloadBlob, useSettings } from '../lib/hooks'
-import { store } from '../lib/store'
+import { store, type DongNhatKyAI, type PhienAI } from '../lib/store'
 import type { Settings } from '../lib/types'
 import FileDrop from './FileDrop'
 import MoneyInput from './MoneyInput'
@@ -184,7 +184,7 @@ export default function SettingsPage() {
         <h2 className="font-semibold text-slate-800">Lưu trữ &amp; sao lưu</h2>
         <div className="rounded-md border border-emerald-300 bg-emerald-50 p-3 text-sm text-emerald-900">
           ☁ <b>Đang tự động lưu lên mạng</b> (Firebase) theo tài khoản đang đăng nhập — mỗi lần sửa là lưu ngay, không cần bấm gì. Hồ sơ ở
-          Firestore, file hóa đơn ở kho riêng. Mất mạng vẫn dùng được, có mạng lại tự đồng bộ. Đăng nhập cùng tài khoản ở máy khác là thấy đủ.
+          Firestore, file hóa đơn ở kho riêng. App chỉ chạy khi có mạng (không lưu bản nháp trên máy). Đăng nhập cùng tài khoản ở máy khác là thấy đủ.
         </div>
         <p className="text-sm text-slate-600">
           Muốn giữ thêm một bản riêng (phòng khi lỡ xóa nhầm), tải bản sao lưu về máy. File gồm toàn bộ hồ sơ, file hóa đơn và mẫu Word — nạp vào
@@ -198,6 +198,105 @@ export default function SettingsPage() {
         <FileDrop onFiles={restore} accept=".zip" multiple={false}>
           Nạp lại bản sao lưu (.zip) — vào tài khoản đang đăng nhập
         </FileDrop>
+      </div>
+
+      <KetNoiAI />
+    </div>
+  )
+}
+
+// Máy chủ MCP chạy trên Vercel (Firebase Hosting không chạy được máy chủ) — mcp/web.ts, api/mcp.ts
+const DIA_CHI_MCP = 'https://hoadon-npsc.vercel.app/mcp'
+const LENH_MCP = `claude mcp add --transport http hoadon ${DIA_CHI_MCP}`
+const gio = (ms: number) => (ms ? new Date(ms).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '')
+
+/** AI (Claude Code, Claude Desktop, claude.ai…) kết nối vào hồ sơ qua MCP: lệnh kết nối, máy đang có quyền, nhật ký AI ghi/xoá */
+function KetNoiAI() {
+  const [phien, setPhien] = useState<PhienAI[] | null>(null)
+  const [nhatKy, setNhatKy] = useState<DongNhatKyAI[]>([])
+  const [loi, setLoi] = useState('')
+  const [daChep, setDaChep] = useState(false)
+  const tai = () => {
+    store.listPhienAI().then(setPhien).catch((e) => setLoi((e as Error).message))
+    store.listNhatKyAI(15).then(setNhatKy).catch(() => undefined)
+  }
+  useEffect(tai, [])
+
+  async function thuHoi(p: PhienAI) {
+    if (!(await hoi(`Thu hồi quyền của "${p.tenMay}"? AI trên máy đó sẽ không đọc/sửa hồ sơ được nữa (muốn dùng lại thì kết nối lại).`, { okLabel: 'Thu hồi', nguyHiem: true }))) return
+    try {
+      await store.thuHoiPhienAI(p.id)
+      tai()
+    } catch (e) {
+      setLoi((e as Error).message)
+    }
+  }
+
+  return (
+    <div className="card space-y-3 lg:col-span-2">
+      <h2 className="font-semibold text-slate-800">🤖 Kết nối AI (Claude Code, Claude Desktop, claude.ai…)</h2>
+      <p className="text-sm text-slate-600">
+        Cho AI hỏi và sửa hồ sơ bằng lời: <i>"tháng 9 còn bao nhiêu tiền chưa được thanh toán?"</i>, <i>"hồ sơ nào đang có cảnh báo?"</i>,{' '}
+        <i>"đánh dấu hồ sơ HĐ 45 đã nộp kế toán hôm nay"</i>. AI dùng đúng cách tính của app và làm bằng quyền tài khoản Google của anh — chỉ thấy
+        hồ sơ của anh.
+      </p>
+      <div>
+        <p className="text-xs text-slate-500">Gõ một lần trong PowerShell trên máy cần dùng (lần đầu trình duyệt sẽ mở trang đăng nhập Google để cho phép):</p>
+        <button
+          className="mt-1 w-full break-all rounded-lg bg-slate-100 px-3 py-2 text-left font-mono text-xs hover:bg-slate-200"
+          title="Bấm để chép"
+          onClick={() => void navigator.clipboard?.writeText(LENH_MCP).then(() => setDaChep(true))}
+        >
+          {LENH_MCP}
+        </button>
+        <p className="mt-1 text-xs text-slate-500">
+          {daChep ? <span className="text-emerald-700">✓ Đã chép lệnh. </span> : null}
+          Claude Desktop / claude.ai: thêm "custom connector" với địa chỉ <span className="font-mono">{DIA_CHI_MCP}</span>
+        </p>
+      </div>
+      {loi && <p className="text-xs text-red-700">⚠️ {loi}</p>}
+      <div className="grid gap-4 md:grid-cols-2">
+        <div>
+          <p className="text-sm font-medium text-slate-700">Máy đang có quyền</p>
+          {phien === null ? (
+            <p className="text-xs text-slate-400">Đang tải…</p>
+          ) : phien.length === 0 ? (
+            <p className="text-xs text-slate-400">Chưa có máy nào.</p>
+          ) : (
+            <ul className="mt-1 space-y-1.5">
+              {phien.map((p) => (
+                <li key={p.id} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{p.tenMay}</span>
+                    <span className="block truncate text-xs text-slate-400">
+                      {p.noiNhan} · {gio(p.taoLuc)}
+                    </span>
+                  </span>
+                  <button className="shrink-0 rounded-full border border-red-300 px-2.5 py-0.5 text-xs text-red-700 hover:bg-red-50" onClick={() => void thuHoi(p)}>
+                    Thu hồi
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+        <div>
+          <p className="text-sm font-medium text-slate-700">AI đã sửa / xoá gần đây</p>
+          {nhatKy.length === 0 ? (
+            <p className="text-xs text-slate-400">Chưa có.</p>
+          ) : (
+            <ul className="mt-1 space-y-1">
+              {nhatKy.map((d) => (
+                <li key={d.id} className={`text-xs ${d.congCu === 'xoa_ho_so' ? 'text-red-700' : 'text-slate-600'}`}>
+                  <span className="text-slate-400">
+                    {gio(d.luc)} · {d.tenMay}:
+                  </span>{' '}
+                  {d.moTa}
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
       </div>
     </div>
   )

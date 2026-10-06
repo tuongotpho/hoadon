@@ -1,6 +1,23 @@
-import type { Dossier, Settings, StoredFile, StoredTemplate, TemplateKind } from '../types'
+import type { Dossier, Settings, StoredFile, StoredTemplate, TemplateKind } from '../types.js'
 
 export type FileInfo = Omit<StoredFile, 'data'>
+
+/** Một máy / ứng dụng AI đã được cho phép (máy chủ MCP ở mcp/ tạo khi người dùng bấm "cho phép") */
+export interface PhienAI {
+  id: string
+  tenMay: string
+  ungDung: string
+  noiNhan: string // localhost = Claude Code trên máy; claude.ai = web / điện thoại
+  taoLuc: number
+}
+
+export interface DongNhatKyAI {
+  id: string
+  luc: number
+  tenMay: string
+  congCu: string
+  moTa: string
+}
 
 /**
  * "Ổ cắm chuẩn" cho việc cất dữ liệu.
@@ -33,6 +50,12 @@ export interface DataStore {
 
   getSettings(): Promise<Settings>
   saveSettings(s: Settings): Promise<void>
+
+  /** AI (Claude Code…) kết nối qua MCP: các máy đang có quyền — xoá = thu hồi ngay */
+  listPhienAI(): Promise<PhienAI[]>
+  thuHoiPhienAI(id: string): Promise<void>
+  /** Các lần AI ghi / xoá gần nhất, mới nhất trước */
+  listNhatKyAI(soDong: number): Promise<DongNhatKyAI[]>
 
   /** Báo khi dữ liệu thay đổi (để màn hình tự cập nhật). Trả về hàm hủy đăng ký. */
   subscribe(cb: () => void): () => void

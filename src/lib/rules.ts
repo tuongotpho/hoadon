@@ -1,5 +1,5 @@
-import { moneyInWords } from './numberToWords'
-import type { Dossier, Invoice, Settings } from './types'
+import { moneyInWords } from './numberToWords.js'
+import type { Dossier, Invoice, Settings } from './types.js'
 
 /** Quy tắc nghiệp vụ về tiền, dùng chung cho màn hình, cảnh báo và mẫu in. */
 

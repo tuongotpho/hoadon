@@ -2,5 +2,14 @@
   "framework": "vite",
   "installCommand": "npm ci",
   "buildCommand": "npm run build",
-  "outputDirectory": "dist"
+  "outputDirectory": "dist",
+  "rewrites": [
+    { "source": "/mcp", "destination": "/api/mcp?duong=/mcp" },
+    { "source": "/oauth/:buoc", "destination": "/api/mcp?duong=/oauth/:buoc" },
+    { "source": "/.well-known/oauth-protected-resource", "destination": "/api/mcp?duong=/.well-known/oauth-protected-resource" },
+    { "source": "/.well-known/oauth-protected-resource/:p*", "destination": "/api/mcp?duong=/.well-known/oauth-protected-resource" },
+    { "source": "/.well-known/oauth-authorization-server", "destination": "/api/mcp?duong=/.well-known/oauth-authorization-server" },
+    { "source": "/.well-known/oauth-authorization-server/:p*", "destination": "/api/mcp?duong=/.well-known/oauth-authorization-server" },
+    { "source": "/.well-known/openid-configuration", "destination": "/api/mcp?duong=/.well-known/openid-configuration" }
+  ]
 }

@@ -1,5 +1,5 @@
 import {
-  Bytes, collection, deleteDoc, doc, getDoc, getDocs, onSnapshot, orderBy, query, setDoc, writeBatch,
+  Bytes, collection, deleteDoc, doc, getDoc, getDocs, limit, onSnapshot, orderBy, query, setDoc, Timestamp, writeBatch,
   type Firestore, type Unsubscribe,
 } from 'firebase/firestore'
 import { deleteObject, getBytes, ref as sref, uploadBytes, type FirebaseStorage } from 'firebase/storage'
@@ -19,6 +19,9 @@ import type { DataStore } from './DataStore'
  * File cũ nào cất kiểu cắt mảnh trong Firestore (có trường chunks) vẫn đọc/xóa được.
  */
 const CHUNK = 700 * 1024
+
+/** Mốc thời gian Firestore (Timestamp) -> mili giây */
+const millis = (v: unknown) => (v instanceof Timestamp ? v.toMillis() : typeof v === 'number' ? v : 0)
 
 export class FirebaseStore implements DataStore {
   private listeners = new Set<() => void>()
@@ -172,6 +175,21 @@ export class FirebaseStore implements DataStore {
   async deleteTemplate(kind: TemplateKind) {
     await this.deleteChunks('templates', kind)
     await deleteDoc(this.ref('templates', kind))
+  }
+
+  // ── AI kết nối qua MCP (máy chủ ở mcp/, ghi users/{uid}/phienAI và nhatKyAI) ──
+  async listPhienAI() {
+    const snap = await getDocs(this.col('phienAI'))
+    return snap.docs
+      .map((d) => ({ id: d.id, tenMay: d.get('tenMay') ?? '', ungDung: d.get('ungDung') ?? '', noiNhan: d.get('noiNhan') ?? '', taoLuc: millis(d.get('taoLuc')) }))
+      .sort((a, b) => b.taoLuc - a.taoLuc)
+  }
+  async thuHoiPhienAI(id: string) {
+    await deleteDoc(this.ref('phienAI', id))
+  }
+  async listNhatKyAI(soDong: number) {
+    const snap = await getDocs(query(this.col('nhatKyAI'), orderBy('luc', 'desc'), limit(soDong)))
+    return snap.docs.map((d) => ({ id: d.id, luc: millis(d.get('luc')), tenMay: d.get('tenMay') ?? '', congCu: d.get('congCu') ?? '', moTa: d.get('moTa') ?? '' }))
   }
 
   // ── Cài đặt ──

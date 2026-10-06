@@ -2,21 +2,9 @@ import { parseInvoiceXml } from './invoiceXml'
 import { moTaHangCam, timHangCam } from './hangCam'
 import { banDoThayThe, biLienQuan, moTaBiLienQuan, moTaLienQuan } from './thayThe'
 import { laBanNhap, parseInvoiceText } from './invoicePdf'
-import { emptyDossier, emptyInvoice } from './model'
+import { emptyDossier, emptyInvoice, khoaHoaDon, toAccountName } from './model'
 import { newId, store } from './store'
 import type { Dossier, Invoice, StoredFile } from './types'
-
-/** HỘ KINH DOANH NGUYỄN VĂN A -> HO KINH DOANH NGUYEN VAN A (kiểu tên tài khoản ngân hàng) */
-export function toAccountName(s: string): string {
-  return s
-    .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toUpperCase()
-    .replace(/\s+/g, ' ')
-    .trim()
-}
 
 /** Tên tài khoản: ưu tiên tên anh đã sửa tay lần trước cho cùng mã số thuế. */
 async function guessAccountName(inv: Invoice): Promise<string> {
@@ -170,7 +158,7 @@ async function canhBaoThayThe(invoices: Invoice[]): Promise<string[]> {
   return out
 }
 
-export { emptyDossier, emptyInvoice, normalizeDossier } from './model'
+export { emptyDossier, emptyInvoice, khoaHoaDon, normalizeDossier, toAccountName } from './model'
 
 
 // ───────────── Nhập hàng loạt hóa đơn cũ ─────────────
@@ -186,16 +174,6 @@ export interface KetQuaNhap {
   trung?: boolean // đã có trong kho
   loi?: string
   ghiChu?: string // cảnh báo rượu/bia, đọc PDF…
-}
-
-/**
- * Khóa nhận diện 1 hóa đơn — quy tắc của anh: TRÙNG khi cùng SỐ + NGÀY XUẤT + MST đơn vị xuất.
- * Tên file / tên hóa đơn giống nhau không tính. Thiếu 1 trong 3 thì không coi là trùng (giữ cả, để người xem).
- */
-export function khoaHoaDon(i: Pick<Invoice, 'soHd' | 'ngayHd' | 'mstNguoiBan'>): string {
-  const so = i.soHd.trim()
-  if (!so || !i.ngayHd || !i.mstNguoiBan.trim()) return ''
-  return [String(Number(so) || so), i.ngayHd, i.mstNguoiBan.replace(/\s/g, '')].join('|')
 }
 
 /**

@@ -1,6 +1,6 @@
-import { daysBetween } from './dates'
-import { statusOf, type StatusKey } from './status'
-import type { Dossier, Invoice } from './types'
+import { daysBetween } from './dates.js'
+import { statusOf, type StatusKey } from './status.js'
+import type { Dossier, Invoice } from './types.js'
 
 /** Một dòng trong bảng kê: hóa đơn + hồ sơ chứa nó. */
 export interface InvoiceRow {
