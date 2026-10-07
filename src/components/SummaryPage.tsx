@@ -5,7 +5,8 @@ import { downloadBlob, useDossiers, useSettings } from '../lib/hooks'
 import { formatMoney } from '../lib/numberToWords'
 import { STATUS_COLOR, STATUS_LABEL, waitingDays, warningsOf } from '../lib/status'
 import { banDoThayThe } from '../lib/thayThe'
-import { avgDurations, byMonth, bySeller, flattenInvoices, yearsOf } from '../lib/summary'
+import { avgDurations, byCo, byMonth, bySeller, byYear, flattenInvoices, topVaKhac, yearsOf } from '../lib/summary'
+import { BieuDoCotChong, BieuDoThanh, trieu } from './BieuDo'
 
 const money = (n: number) => (n ? formatMoney(n) : '—')
 
@@ -60,7 +61,10 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
   }, [rows])
 
   const months = useMemo(() => (year === 'all' ? null : byMonth(allRows, year)), [allRows, year])
-  const sellers = useMemo(() => bySeller(rows).slice(0, 10), [rows])
+  const allSellers = useMemo(() => bySeller(rows), [rows])
+  const sellers = allSellers.slice(0, 10)
+  const years10 = useMemo(() => (year === 'all' ? byYear(allRows) : null), [allRows, year])
+  const coHd = useMemo(() => byCo(rows, [2e6, settings.nguongTien, 10e6, 20e6].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b)), [rows, settings.nguongTien])
   const durations = useMemo(() => avgDurations([...new Set(rows.map((r) => r.d))]), [rows])
 
   // Việc cần xử lý: hồ sơ còn dở, có cảnh báo hoặc chờ lâu (không phụ thuộc bộ lọc)
@@ -123,9 +127,27 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
       )}
 
       <div className="grid gap-4 lg:grid-cols-2">
+        {years10 && (
+          <div className="card">
+            <h3 className="mb-2 font-semibold text-slate-800">Theo năm</h3>
+            <BieuDoCotChong
+              ds={years10.map((y) => ({ khoa: y.nam, nhan: String(y.nam), tieuDe: `Năm ${y.nam}`, soHd: y.soHd, daTt: y.daTt, choKt: y.choKt, chuaNop: y.chuaNop }))}
+              onChon={(nam) => setYear(nam)}
+            />
+            <p className="mt-1 text-xs text-slate-400">Bấm vào một năm để xem chi tiết từng tháng.</p>
+          </div>
+        )}
+
         {months && (
           <div className="card overflow-x-auto">
             <h3 className="mb-2 font-semibold text-slate-800">Theo tháng — năm {year}</h3>
+            <BieuDoCotChong
+              ds={months.map((m) => ({ khoa: m.thang, nhan: `T${m.thang}`, tieuDe: `Tháng ${m.thang}/${year}`, soHd: m.soHd, daTt: m.daTt, choKt: m.choKt, chuaNop: m.chuaNop }))}
+              chon={month === 'all' ? undefined : month}
+              onChon={(t) => setMonth(month === t ? 'all' : t)}
+            />
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-slate-500">Xem bảng số</summary>
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-slate-500">
                 <tr>
@@ -160,7 +182,8 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
                 </tr>
               </tbody>
             </table>
-            <p className="mt-1 text-xs text-slate-400">Bấm vào một tháng để lọc bảng kê bên dưới.</p>
+            </details>
+            <p className="mt-1 text-xs text-slate-400">Bấm vào một tháng để lọc bảng kê bên dưới (bấm lại để bỏ lọc).</p>
           </div>
         )}
 
@@ -169,6 +192,18 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
           {sellers.length === 0 ? (
             <p className="text-sm text-slate-400">Chưa có hóa đơn.</p>
           ) : (
+            <>
+            <BieuDoThanh
+              ds={(() => {
+                const { top, khac } = topVaKhac(allSellers, 10)
+                return [
+                  ...top.map((s) => ({ khoa: s.mst + s.ten, ten: s.ten, phu: s.mst ? `MST ${s.mst}` : undefined, giaTri: s.tongTien, ghiChu: `${s.soHd} HĐ` })),
+                  ...(khac ? [{ khoa: '__khac', ten: `${khac.soNguoi} người bán khác`, giaTri: khac.tongTien, ghiChu: `${khac.soHd} HĐ`, mo: true }] : []),
+                ]
+              })()}
+            />
+            <details className="mt-2">
+              <summary className="cursor-pointer text-xs text-slate-500">Xem bảng số (10 người bán nhiều nhất)</summary>
             <table className="w-full text-sm">
               <thead className="text-left text-xs text-slate-500">
                 <tr>
@@ -190,6 +225,27 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
                 ))}
               </tbody>
             </table>
+            </details>
+            </>
+          )}
+        </div>
+
+        <div className="card">
+          <h3 className="font-semibold text-slate-800">Theo cỡ hóa đơn ({kyLabel})</h3>
+          <p className="mb-2 text-xs text-slate-500">
+            Từ {trieu(settings.nguongTien)} trở lên: giấy ĐNTT phải in tài khoản người bán, dự trù {trieu(settings.duTruTuNguong)}.
+          </p>
+          {rows.length === 0 ? (
+            <p className="text-sm text-slate-400">Chưa có hóa đơn.</p>
+          ) : (
+            <BieuDoThanh
+              ds={coHd.map((c) => ({
+                khoa: String(c.tu),
+                ten: c.den == null ? `Từ ${trieu(c.tu)}` : c.tu === 0 ? `Dưới ${trieu(c.den)}` : `${trieu(c.tu)} – dưới ${trieu(c.den)}`,
+                giaTri: c.tongTien,
+                ghiChu: `${c.soHd} HĐ`,
+              }))}
+            />
           )}
         </div>
       </div>

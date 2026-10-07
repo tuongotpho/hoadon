@@ -77,3 +77,46 @@ export function avgDurations(list: Dossier[]) {
     nopDenTt: avg(list.map((d) => (d.ngayKeToanTt && d.ngayNopKeToan ? daysBetween(d.ngayNopKeToan, d.ngayKeToanTt) : null))),
   }
 }
+
+export interface YearStat extends Omit<MonthStat, 'thang'> {
+  nam: number
+}
+
+/** Như byMonth nhưng gộp theo năm (biểu đồ khi chọn "Tất cả các năm"). Năm cũ trước. */
+export function byYear(rows: InvoiceRow[]): YearStat[] {
+  return yearsOf(rows)
+    .sort((a, b) => a - b)
+    .map((nam) => byMonth(rows, nam).reduce<YearStat>(
+      (a, m) => ({ nam, soHd: a.soHd + m.soHd, tongTien: a.tongTien + m.tongTien, daTt: a.daTt + m.daTt, choKt: a.choKt + m.choKt, chuaNop: a.chuaNop + m.chuaNop }),
+      { nam, soHd: 0, tongTien: 0, daTt: 0, choKt: 0, chuaNop: 0 },
+    ))
+}
+
+/** Top N người bán, phần còn lại gộp thành 1 dòng "khác" (không vẽ thêm màu cho từng người). */
+export function topVaKhac(list: SellerStat[], n: number): { top: SellerStat[]; khac: { soNguoi: number; soHd: number; tongTien: number } | null } {
+  const con = list.slice(n)
+  return {
+    top: list.slice(0, n),
+    khac: con.length ? { soNguoi: con.length, soHd: con.reduce((a, s) => a + s.soHd, 0), tongTien: con.reduce((a, s) => a + s.tongTien, 0) } : null,
+  }
+}
+
+export interface CoStat {
+  tu: number // từ (gồm)
+  den: number | null // đến (không gồm); null = trở lên
+  soHd: number
+  tongTien: number
+}
+
+/** Chia hóa đơn theo cỡ tiền: dưới 2tr, 2–5tr, 5–10tr, 10–20tr, từ 20tr. Mốc 5tr = ngưỡng in tài khoản người bán. */
+export function byCo(rows: InvoiceRow[], moc = [2e6, 5e6, 10e6, 20e6]): CoStat[] {
+  const bien = [0, ...moc]
+  const out: CoStat[] = bien.map((tu, i) => ({ tu, den: moc[i] ?? null, soHd: 0, tongTien: 0 }))
+  for (const r of rows) {
+    const t = r.inv.tongTien || 0
+    const o = [...out].reverse().find((x) => t >= x.tu)!
+    o.soHd++
+    o.tongTien += t
+  }
+  return out
+}
