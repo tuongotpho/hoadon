@@ -205,18 +205,16 @@ export default function SettingsPage() {
   )
 }
 
-// Máy chủ MCP chạy trên Vercel (Firebase Hosting không chạy được máy chủ) — mcp/web.ts, api/mcp.ts
-const DIA_CHI_MCP = 'https://hoadon-npsc.vercel.app/mcp'
-const LENH_MCP = `claude mcp add --transport http hoadon ${DIA_CHI_MCP}`
-const JSON_MCP = JSON.stringify({ mcpServers: { hoadon: { type: 'http', url: DIA_CHI_MCP } } })
 const gio = (ms: number) => (ms ? new Date(ms).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '')
 
-/** AI (Claude Code, Claude Desktop, claude.ai…) kết nối vào hồ sơ qua MCP: lệnh kết nối, máy đang có quyền, nhật ký AI ghi/xoá */
+/**
+ * Quyền của AI (Claude… kết nối qua /mcp — máy chủ ở mcp/, chạy trên Vercel): gập sẵn, bấm mới mở.
+ * Giữ lại vì đây là chỗ duy nhất trên giao diện để THU HỒI quyền một máy và xem AI đã sửa gì.
+ */
 function KetNoiAI() {
   const [phien, setPhien] = useState<PhienAI[] | null>(null)
   const [nhatKy, setNhatKy] = useState<DongNhatKyAI[]>([])
   const [loi, setLoi] = useState('')
-  const [daChep, setDaChep] = useState<'' | 'json' | 'lenh'>('')
   const tai = () => {
     store.listPhienAI().then(setPhien).catch((e) => setLoi((e as Error).message))
     store.listNhatKyAI(15).then(setNhatKy).catch(() => undefined)
@@ -234,54 +232,23 @@ function KetNoiAI() {
   }
 
   return (
-    <div className="card space-y-3 lg:col-span-2">
-      <h2 className="font-semibold text-slate-800">🤖 Kết nối AI (Claude Code, Claude Desktop, claude.ai…)</h2>
-      <p className="text-sm text-slate-600">
-        Cho AI hỏi và sửa hồ sơ bằng lời: <i>"tháng 9 còn bao nhiêu tiền chưa được thanh toán?"</i>, <i>"hồ sơ nào đang có cảnh báo?"</i>,{' '}
-        <i>"đánh dấu hồ sơ HĐ 45 đã nộp kế toán hôm nay"</i>. AI dùng đúng cách tính của app và làm bằng quyền tài khoản Google của anh — chỉ thấy
-        hồ sơ của anh.
-      </p>
-      <div className="space-y-2 text-xs text-slate-600">
-        <p>
-          <b>Claude Code trong app Claude (desktop):</b> dán đoạn dưới vào file <span className="font-mono">.mcp.json</span> ở thư mục dự án (hoặc nhờ
-          Claude thêm giúp), mở phiên mới, gõ <span className="font-mono">/mcp</span> trong ô chat → chọn <b>hoadon</b> → <b>Authenticate</b> → đăng nhập
-          Google để cho phép.
-        </p>
-        <button
-          className="w-full break-all rounded-lg bg-slate-100 px-3 py-2 text-left font-mono text-xs hover:bg-slate-200"
-          title="Bấm để chép"
-          onClick={() => void navigator.clipboard?.writeText(JSON_MCP).then(() => setDaChep('json'))}
-        >
-          {JSON_MCP}
-        </button>
-        <p>
-          <b>Claude Code dòng lệnh</b> (máy có lệnh <span className="font-mono">claude</span>):{' '}
-          <button className="break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono hover:bg-slate-200" title="Bấm để chép" onClick={() => void navigator.clipboard?.writeText(LENH_MCP).then(() => setDaChep('lenh'))}>
-            {LENH_MCP}
-          </button>
-        </p>
-        <p>
-          <b>claude.ai / Claude Desktop (chat):</b> Cài đặt → Connectors → thêm "custom connector" với địa chỉ <span className="font-mono">{DIA_CHI_MCP}</span>
-        </p>
-        {daChep && <p className="text-emerald-700">✓ Đã chép {daChep === 'json' ? 'đoạn cấu hình' : 'lệnh'}.</p>}
-      </div>
-      {loi && <p className="text-xs text-red-700">⚠️ {loi}</p>}
-      <div className="grid gap-4 md:grid-cols-2">
+    <details className="text-sm text-slate-600 lg:col-span-2">
+      <summary className="cursor-pointer select-none text-xs text-slate-400 hover:text-slate-600">
+        Quyền của AI ({phien === null ? '…' : `${phien.length} máy`}) — thu hồi, nhật ký
+      </summary>
+      <div className="card mt-2 grid gap-4 md:grid-cols-2">
+        {loi && <p className="text-xs text-red-700 md:col-span-2">⚠️ {loi}</p>}
         <div>
-          <p className="text-sm font-medium text-slate-700">Máy đang có quyền</p>
-          {phien === null ? (
-            <p className="text-xs text-slate-400">Đang tải…</p>
-          ) : phien.length === 0 ? (
-            <p className="text-xs text-slate-400">Chưa có máy nào.</p>
+          <p className="font-medium text-slate-700">Máy đang có quyền</p>
+          {!phien?.length ? (
+            <p className="text-xs text-slate-400">{phien === null ? 'Đang tải…' : 'Chưa có máy nào.'}</p>
           ) : (
             <ul className="mt-1 space-y-1.5">
               {phien.map((p) => (
-                <li key={p.id} className="flex items-center gap-2 text-sm">
+                <li key={p.id} className="flex items-center gap-2">
                   <span className="min-w-0 flex-1">
                     <span className="block truncate font-medium">{p.tenMay}</span>
-                    <span className="block truncate text-xs text-slate-400">
-                      {p.noiNhan} · {gio(p.taoLuc)}
-                    </span>
+                    <span className="block truncate text-xs text-slate-400">{p.noiNhan} · {gio(p.taoLuc)}</span>
                   </span>
                   <button className="shrink-0 rounded-full border border-red-300 px-2.5 py-0.5 text-xs text-red-700 hover:bg-red-50" onClick={() => void thuHoi(p)}>
                     Thu hồi
@@ -292,23 +259,20 @@ function KetNoiAI() {
           )}
         </div>
         <div>
-          <p className="text-sm font-medium text-slate-700">AI đã sửa / xoá gần đây</p>
+          <p className="font-medium text-slate-700">AI đã sửa / xoá gần đây</p>
           {nhatKy.length === 0 ? (
             <p className="text-xs text-slate-400">Chưa có.</p>
           ) : (
             <ul className="mt-1 space-y-1">
               {nhatKy.map((d) => (
                 <li key={d.id} className={`text-xs ${d.congCu === 'xoa_ho_so' ? 'text-red-700' : 'text-slate-600'}`}>
-                  <span className="text-slate-400">
-                    {gio(d.luc)} · {d.tenMay}:
-                  </span>{' '}
-                  {d.moTa}
+                  <span className="text-slate-400">{gio(d.luc)} · {d.tenMay}:</span> {d.moTa}
                 </li>
               ))}
             </ul>
           )}
         </div>
       </div>
-    </div>
+    </details>
   )
 }
