@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyDossier, emptyInvoice } from '../src/lib/model'
-import { avgDurations, byCo, byMonth, bySeller, byYear, flattenInvoices, khoaNguoiBan, topVaKhac } from '../src/lib/summary'
+import { chuanTag, goiYTag, KHONG_TAG } from '../src/lib/hashtag'
+import { avgDurations, byCo, byMonth, bySeller, byTag, byYear, coTag, flattenInvoices, khoaNguoiBan, topVaKhac } from '../src/lib/summary'
 import type { Dossier } from '../src/lib/types'
 
 function hs(ngayHd: string, tien: number, mst: string, patch: Partial<Dossier> = {}): Dossier {
@@ -76,5 +77,28 @@ describe('lọc theo người bán (bấm vào biểu đồ)', () => {
       expect([loc.length, loc.reduce((a, r) => a + r.inv.tongTien, 0)]).toEqual([s.soHd, s.tongTien])
     }
     expect(bySeller(rows).map((s) => [s.khoa, s.soHd])).toEqual([['0101', 2], ['Hộ B', 2], ['0202', 1]])
+  })
+})
+
+describe('thống kê theo hashtag', () => {
+  it('byTag: hồ sơ nhiều tag tính vào mỗi tag; chưa gắn -> "(chưa gắn)" xếp cuối', () => {
+    const d = (id: string, tags: string[], tien: number[]) => ({ ...emptyDossier(), id, tags, invoices: tien.map((t) => ({ ...emptyInvoice(), ngayHd: '2026-01-02', tongTien: t })) })
+    const rows = flattenInvoices([d('a', ['CBM', 'SCL'], [10]), d('b', ['CBM'], [5, 1]), d('c', [], [7])])
+    expect(byTag(rows)).toEqual([
+      { ma: 'CBM', soHd: 3, soHoSo: 2, tongTien: 16 },
+      { ma: 'SCL', soHd: 1, soHoSo: 1, tongTien: 10 },
+      { ma: KHONG_TAG, soHd: 1, soHoSo: 1, tongTien: 7 },
+    ])
+    expect(rows.filter((r) => coTag(r.d, KHONG_TAG)).map((r) => r.d.id)).toEqual(['c'])
+  })
+  it('goiYTag: nhận đúng loại việc từ nội dung ĐNTT; chuanTag bỏ dấu / # / khoảng trắng', () => {
+    expect(goiYTag('Làm việc với Công ty Điện lực Hưng Yên về công tác CBM năm 2026')).toEqual(['CBM'])
+    expect(goiYTag('Kiểm tra thử nghiệm thiết bị theo tình trạng vận hành (CBM); Công tác SCL tại tỉnh Hà Nam')).toEqual(['CBM', 'SCL'])
+    expect(goiYTag('lập duyệt định mức nhân công công tác bảo trì bảo dưỡng hệ thống PCCC')).toEqual(['PCCC'])
+    expect(goiYTag('kiểm tra việc thực hiện công tác bảo trì bảo dưỡng các thiết bị điện trong TBA 110kV')).toEqual(['BTBD'])
+    expect(goiYTag('thực hiện đề tài NCKH: giảm thiểu sự cố lưới điện trung áp')).toEqual(['KHCN'])
+    expect(goiYTag('bảo vệ sáng kiến Chế tạo hợp bộ thử nghiệm cách điện vòng dây MBA')).toEqual(['SANGKIEN'])
+    expect(goiYTag('Đi ăn trưa')).toEqual([])
+    expect(chuanTag(' #sáng kiến ')).toBe('SANGKIEN')
   })
 })

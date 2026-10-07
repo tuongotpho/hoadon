@@ -15,10 +15,10 @@ function toCsv(rows: (string | number)[][]): Blob {
 /** Bảng kê từng hóa đơn (mỗi hóa đơn 1 dòng). */
 export function invoicesToCsv(rows: { inv: import('./types').Invoice; d: Dossier }[]): Blob {
   return toCsv([
-    ['STT', 'Ngày HĐ', 'Ký hiệu', 'Số HĐ', 'Người bán', 'MST', 'Trước thuế', 'Thuế', 'Tổng tiền', 'Nội dung', 'Ngày nộp KT', 'Ngày KT thanh toán', 'Trạng thái'],
+    ['STT', 'Ngày HĐ', 'Ký hiệu', 'Số HĐ', 'Người bán', 'MST', 'Trước thuế', 'Thuế', 'Tổng tiền', 'Nội dung', 'Hashtag', 'Ngày nộp KT', 'Ngày KT thanh toán', 'Trạng thái'],
     ...rows.map(({ inv, d }, i) => [
       i + 1, fmtDate(inv.ngayHd), inv.kyHieu, inv.soHd, inv.tenNguoiBan, inv.mstNguoiBan,
-      Math.round(inv.tienTruocThue), Math.round(inv.tienThue), Math.round(inv.tongTien), d.noiDung,
+      Math.round(inv.tienTruocThue), Math.round(inv.tienThue), Math.round(inv.tongTien), d.noiDung, (d.tags ?? []).map((t) => `#${t}`).join(' '),
       fmtDate(d.ngayNopKeToan), fmtDate(d.ngayKeToanTt), STATUS_LABEL[statusOf(d)],
     ]),
   ])

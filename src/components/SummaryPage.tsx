@@ -5,8 +5,10 @@ import { downloadBlob, useDossiers, useSettings } from '../lib/hooks'
 import { formatMoney } from '../lib/numberToWords'
 import { STATUS_COLOR, STATUS_LABEL, waitingDays, warningsOf } from '../lib/status'
 import { banDoThayThe } from '../lib/thayThe'
-import { avgDurations, byCo, byMonth, bySeller, byYear, flattenInvoices, khoaNguoiBan, topVaKhac, yearsOf } from '../lib/summary'
+import { KHONG_TAG, TAG_MAC_DINH } from '../lib/hashtag'
+import { avgDurations, byCo, byMonth, bySeller, byTag, byYear, coTag, flattenInvoices, khoaNguoiBan, topVaKhac, yearsOf, type InvoiceRow } from '../lib/summary'
 import { BieuDoCotChong, BieuDoThanh, trieu } from './BieuDo'
+import { TagChips } from './TagChips'
 
 const money = (n: number) => (n ? formatMoney(n) : '—')
 
@@ -46,15 +48,30 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
       return [r.inv.soHd, r.inv.tenNguoiBan, r.inv.mstNguoiBan, r.d.noiDung].join(' ').toLowerCase().includes(kw)
     })
   }, [allRows, year, month, q])
-  const rows = useMemo(() => (nguoiBan ? rowsKy.filter((r) => khoaNguoiBan(r.inv) === nguoiBan) : rowsKy), [rowsKy, nguoiBan])
-  // biểu đồ tháng / năm cũng chỉ tính người bán đang chọn
-  const allRowsNb = useMemo(() => (nguoiBan ? allRows.filter((r) => khoaNguoiBan(r.inv) === nguoiBan) : allRows), [allRows, nguoiBan])
+  // Lọc theo hashtag công việc: bấm vào thanh trong biểu đồ "Theo việc"
+  const [tag, setTag] = useState<string | null>(null)
+  const hopNb = (r: InvoiceRow) => !nguoiBan || khoaNguoiBan(r.inv) === nguoiBan
+  const hopTag = (r: InvoiceRow) => !tag || coTag(r.d, tag)
+  // Mỗi biểu đồ xếp hạng theo bộ lọc của biểu đồ KIA (không tự lọc chính nó) — để đổi lựa chọn dễ
+  const rowsChoNguoiBan = useMemo(() => rowsKy.filter(hopTag), [rowsKy, tag]) // eslint-disable-line react-hooks/exhaustive-deps
+  const rowsChoTag = useMemo(() => rowsKy.filter(hopNb), [rowsKy, nguoiBan]) // eslint-disable-line react-hooks/exhaustive-deps
+  const rows = useMemo(() => rowsKy.filter((r) => hopNb(r) && hopTag(r)), [rowsKy, nguoiBan, tag]) // eslint-disable-line react-hooks/exhaustive-deps
+  // biểu đồ tháng / năm cũng chỉ tính người bán + tag đang chọn
+  const allRowsNb = useMemo(() => allRows.filter((r) => hopNb(r) && hopTag(r)), [allRows, nguoiBan, tag]) // eslint-disable-line react-hooks/exhaustive-deps
   const tenNguoiBan = nguoiBan ? (allRows.find((r) => khoaNguoiBan(r.inv) === nguoiBan)?.inv.tenNguoiBan || nguoiBan) : ''
+  const tagStats = useMemo(() => byTag(rowsChoTag), [rowsChoTag])
+  const nhieuTag = rowsChoTag.some((r) => (r.d.tags?.length ?? 0) > 1)
 
+  const cuonToiBangKe = () => setTimeout(() => bangKeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
   function chonNguoiBan(khoa: string) {
     const bo = nguoiBan === khoa
     setNguoiBan(bo ? null : khoa)
-    if (!bo) setTimeout(() => bangKeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+    if (!bo) cuonToiBangKe()
+  }
+  function chonTag(ma: string) {
+    const bo = tag === ma
+    setTag(bo ? null : ma)
+    if (!bo) cuonToiBangKe()
   }
 
   const totals = useMemo(() => {
@@ -75,7 +92,7 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
   }, [rows])
 
   const months = useMemo(() => (year === 'all' ? null : byMonth(allRowsNb, year)), [allRowsNb, year])
-  const allSellers = useMemo(() => bySeller(rowsKy), [rowsKy])
+  const allSellers = useMemo(() => bySeller(rowsChoNguoiBan), [rowsChoNguoiBan])
   const sellers = allSellers.slice(0, 10)
   const years10 = useMemo(() => (year === 'all' ? byYear(allRowsNb) : null), [allRowsNb, year])
   const coHd = useMemo(() => byCo(rows, [2e6, settings.nguongTien, 10e6, 20e6].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b)), [rows, settings.nguongTien])
@@ -112,6 +129,14 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
           <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 py-1 pl-3 pr-1 text-sm text-blue-900">
             <span className="truncate">Người bán: <b>{tenNguoiBan}</b></span>
             <button className="rounded-full px-1.5 text-blue-500 hover:bg-blue-100 hover:text-blue-800" title="Bỏ lọc người bán" onClick={() => setNguoiBan(null)}>
+              ✕
+            </button>
+          </span>
+        )}
+        {tag && (
+          <span className="inline-flex items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 py-1 pl-3 pr-1 text-sm text-blue-900">
+            Việc: <b>{tag === KHONG_TAG ? tag : `#${tag}`}</b>
+            <button className="rounded-full px-1.5 text-blue-500 hover:bg-blue-100 hover:text-blue-800" title="Bỏ lọc hashtag" onClick={() => setTag(null)}>
               ✕
             </button>
           </span>
@@ -256,6 +281,31 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
         </div>
 
         <div className="card">
+          <h3 className="font-semibold text-slate-800">Theo việc — hashtag ({kyLabel})</h3>
+          <p className="mb-2 text-xs text-slate-500">
+            Gắn tag ở màn hình hồ sơ.{nhieuTag ? ' Hồ sơ nhiều tag được tính vào mỗi tag, nên cộng các dòng có thể lớn hơn tổng tiền.' : ''}
+          </p>
+          {tagStats.length === 0 ? (
+            <p className="text-sm text-slate-400">Chưa có hóa đơn.</p>
+          ) : (
+            <>
+              <BieuDoThanh
+                ds={tagStats.map((t) => ({
+                  khoa: t.ma,
+                  ten: t.ma === KHONG_TAG ? t.ma : `#${t.ma}`,
+                  phu: TAG_MAC_DINH.find((x) => x.ma === t.ma)?.ten,
+                  giaTri: t.tongTien,
+                  ghiChu: `${t.soHoSo} hồ sơ`,
+                }))}
+                chon={tag ?? undefined}
+                onChon={chonTag}
+              />
+              <p className="mt-1 text-xs text-slate-400">Bấm vào một việc để xem các hóa đơn của việc đó (bấm lại để bỏ lọc).</p>
+            </>
+          )}
+        </div>
+
+        <div className="card">
           <h3 className="font-semibold text-slate-800">Theo cỡ hóa đơn ({kyLabel})</h3>
           <p className="mb-2 text-xs text-slate-500">
             Từ {trieu(settings.nguongTien)} trở lên: giấy ĐNTT phải in tài khoản người bán, dự trù {trieu(settings.duTruTuNguong)}.
@@ -277,9 +327,9 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
 
       <div ref={bangKeRef} className="card scroll-mt-20 overflow-x-auto">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold text-slate-800">Bảng kê hóa đơn ({rows.length}){nguoiBan && <span className="font-normal text-slate-500"> — {tenNguoiBan}</span>}</h3>
+          <h3 className="font-semibold text-slate-800">Bảng kê hóa đơn ({rows.length}){tag && <span className="font-normal text-slate-500"> — {tag === KHONG_TAG ? tag : `#${tag}`}</span>}{nguoiBan && <span className="font-normal text-slate-500"> — {tenNguoiBan}</span>}</h3>
           <input className="inp max-w-xs" placeholder="Tìm số HĐ, người bán, MST, nội dung…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn ml-auto" onClick={() => downloadBlob(invoicesToCsv(rows), `Bang ke hoa don ${kyLabel.replace(/\//g, '-')}${nguoiBan ? ` - ${nguoiBan}` : ''}.csv`)}>
+          <button className="btn ml-auto" onClick={() => downloadBlob(invoicesToCsv(rows), `Bang ke hoa don ${kyLabel.replace(/\//g, '-')}${tag ? ` - ${tag === KHONG_TAG ? 'chua gan tag' : tag}` : ''}${nguoiBan ? ` - ${nguoiBan}` : ''}.csv`)}>
             ⬇ Xuất Excel
           </button>
         </div>
@@ -308,7 +358,7 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
                 <td className="px-2 py-1.5">{r.inv.kyHieu} / <b>{r.inv.soHd}</b></td>
                 <td className="max-w-[14rem] truncate px-2 py-1.5">{r.inv.tenNguoiBan}</td>
                 <td className="px-2 py-1.5 text-right font-medium">{formatMoney(r.inv.tongTien)}</td>
-                <td className="max-w-[16rem] truncate px-2 py-1.5 text-slate-600">{r.d.noiDung}</td>
+                <td className="max-w-[18rem] truncate px-2 py-1.5 text-slate-600"><TagChips tags={r.d.tags} className="mr-1 align-middle" />{r.d.noiDung}</td>
                 <td className="px-2 py-1.5">{fmtDate(r.d.ngayNopKeToan)}</td>
                 <td className="px-2 py-1.5">{fmtDate(r.d.ngayKeToanTt)}</td>
                 <td className="px-2 py-1.5">

@@ -13,7 +13,7 @@ export function emptyDossier(): Dossier {
   const now = Date.now()
   return {
     id: newId(), noiDung: '', doiTac: '', duTru: 0, nguoiDeNghi: '', nhiemVu: '', thanhPhan: [], lyDo: '', ghiChu: '', invoices: [], soToTrinh: '',
-    ngayToTrinh: '', soDntt: '', ngayDntt: '', ngayNopKeToan: '', ngayKeToanTt: '', hinhThucTt: 'Chuyển khoản', hoSoCu: false,
+    ngayToTrinh: '', soDntt: '', ngayDntt: '', ngayNopKeToan: '', ngayKeToanTt: '', hinhThucTt: 'Chuyển khoản', hoSoCu: false, tags: [],
     createdAt: now, updatedAt: now,
   }
 }

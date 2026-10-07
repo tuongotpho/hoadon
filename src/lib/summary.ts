@@ -1,3 +1,4 @@
+import { KHONG_TAG } from './hashtag.js'
 import { daysBetween } from './dates.js'
 import { statusOf, type StatusKey } from './status.js'
 import type { Dossier, Invoice } from './types.js'
@@ -126,3 +127,33 @@ export function byCo(rows: InvoiceRow[], moc = [2e6, 5e6, 10e6, 20e6]): CoStat[]
   }
   return out
 }
+
+export interface TagStat {
+  ma: string // mã tag, hoặc KHONG_TAG
+  soHd: number
+  soHoSo: number
+  tongTien: number
+}
+
+/**
+ * Tiền theo hashtag công việc. Hồ sơ nhiều tag được tính vào MỖI tag
+ * (nên cộng các tag có thể lớn hơn tổng tiền — ghi rõ khi hiển thị). Hồ sơ chưa gắn -> KHONG_TAG.
+ */
+export function byTag(rows: InvoiceRow[]): TagStat[] {
+  const map = new Map<string, TagStat & { hs: Set<string> }>()
+  for (const r of rows) {
+    for (const ma of r.d.tags?.length ? r.d.tags : [KHONG_TAG]) {
+      const s = map.get(ma) ?? { ma, soHd: 0, soHoSo: 0, tongTien: 0, hs: new Set<string>() }
+      s.soHd++
+      s.tongTien += r.inv.tongTien || 0
+      s.hs.add(r.d.id)
+      map.set(ma, s)
+    }
+  }
+  return [...map.values()]
+    .map(({ hs, ...s }) => ({ ...s, soHoSo: hs.size }))
+    .sort((a, b) => (a.ma === KHONG_TAG ? 1 : b.ma === KHONG_TAG ? -1 : b.tongTien - a.tongTien))
+}
+
+/** Hóa đơn có thuộc tag này không (KHONG_TAG = hồ sơ chưa gắn tag nào) */
+export const coTag = (d: Dossier, ma: string) => (ma === KHONG_TAG ? !d.tags?.length : !!d.tags?.includes(ma))

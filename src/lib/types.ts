@@ -67,6 +67,7 @@ export interface Dossier {
 
   hinhThucTt: string // Chuyển khoản / Tiền mặt
   hoSoCu: boolean // hóa đơn cũ nhập vào kho: chỉ cần tiền + đã/chưa thanh toán, không bắt buộc tờ trình/TK
+  tags: string[] // hashtag công việc: KHCN, CBM, SCL… (xem lib/hashtag.ts) — để thống kê theo loại việc
   createdAt: number
   updatedAt: number
 }

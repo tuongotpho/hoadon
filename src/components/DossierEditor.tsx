@@ -20,6 +20,7 @@ import InvoiceCard from './InvoiceCard'
 import PreviewModal from './PreviewModal'
 import MoneyInput from './MoneyInput'
 import ThanhPhanEditor from './ThanhPhanEditor'
+import { TagEditor } from './TagChips'
 import { bao, hoi } from '../lib/dialog'
 
 export default function DossierEditor({ id, onClose }: { id: string; onClose: () => void }) {
@@ -33,7 +34,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
   const timer = useRef<number | undefined>(undefined)
   const latest = useRef<Dossier | null>(null)
 
-  const [goiY, setGoiY] = useState<{ doiTac: string[]; donVi: string[] }>({ doiTac: [], donVi: [] })
+  const [goiY, setGoiY] = useState<{ doiTac: string[]; donVi: string[]; tags: string[][] }>({ doiTac: [], donVi: [], tags: [] })
   const [thayThe, setThayThe] = useState<BanDoThayThe>(new Map()) // hóa đơn nào trong kho đã bị thay thế
 
   useEffect(() => {
@@ -41,7 +42,7 @@ export default function DossierEditor({ id, onClose }: { id: string; onClose: ()
     // gợi ý từ các hồ sơ cũ: đơn vị làm việc, tên đơn vị tham gia
     store.listDossiers().then((all) => {
       const uniq = (xs: string[]) => [...new Set(xs.map((x) => x.trim()).filter(Boolean))]
-      setGoiY({ doiTac: uniq(all.map((x) => x.doiTac)), donVi: uniq(all.flatMap((x) => x.thanhPhan.map((t) => t.donVi))) })
+      setGoiY({ doiTac: uniq(all.map((x) => x.doiTac)), donVi: uniq(all.flatMap((x) => x.thanhPhan.map((t) => t.donVi))), tags: all.map((x) => x.tags ?? []) })
       setThayThe(banDoThayThe(all))
     })
   }, [id])
@@ -240,6 +241,10 @@ Anh có chắc vẫn xuất tờ trình / đề nghị thanh toán?`,
             <div>
               <label className="lbl">Nội dung (dùng cho tờ trình "- Nội dung: …" và "Nội dung thanh toán: …")</label>
               <input className="inp" value={d.noiDung} onChange={(e) => set('noiDung', e.target.value)} placeholder="Ví dụ: Làm việc với Công ty Điện lực Hưng Yên về công tác CBM năm 2026" />
+            </div>
+            <div>
+              <label className="lbl">Hashtag công việc (để thống kê tiền theo loại việc ở trang Tổng hợp)</label>
+              <TagEditor value={d.tags ?? []} onChange={(v) => set('tags', v)} noiDung={d.noiDung} dangDung={goiY.tags} />
             </div>
             <div>
               <label className="lbl">Người đề nghị thanh toán</label>

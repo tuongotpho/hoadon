@@ -15,6 +15,7 @@ import FileDrop from './FileDrop'
 import NhapHoaDonCu from './NhapHoaDonCu'
 import SuaNgayHangLoat from './SuaNgayHangLoat'
 import { banDoThayThe } from '../lib/thayThe'
+import { TagChips } from './TagChips'
 import { bao, hoi } from '../lib/dialog'
 
 // Ô trạng thái ở đầu trang (bỏ "Chưa có hóa đơn" theo yêu cầu — hồ sơ chưa có HĐ vẫn hiện ở bộ lọc "Tất cả")
@@ -69,7 +70,7 @@ export default function DossierList({ onOpen }: { onOpen: (id: string) => void }
       if (filter === 'cu' && !d.hoSoCu) return false
       if (filter !== 'all' && filter !== 'chuaXong' && filter !== 'cu' && s !== filter) return false
       if (!kw) return true
-      const hay = [d.noiDung, d.soToTrinh, d.soDntt, ...d.invoices.flatMap((i) => [i.soHd, i.tenNguoiBan, i.mstNguoiBan])]
+      const hay = [d.noiDung, d.soToTrinh, d.soDntt, ...(d.tags ?? []).map((t) => `#${t}`), ...d.invoices.flatMap((i) => [i.soHd, i.tenNguoiBan, i.mstNguoiBan])]
         .join(' ')
         .toLowerCase()
       return hay.includes(kw)
@@ -313,7 +314,7 @@ Không lấy lại được (trừ khi có bản sao lưu .zip).`,
                   <td className="max-w-xs px-3 py-2">
                     <div className="truncate font-medium text-slate-800">
                       {d.hoSoCu && <span className="mr-1.5 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold uppercase text-slate-600">HĐ cũ</span>}
-                      {d.noiDung || (d.hoSoCu ? d.invoices[0]?.tenNguoiBan : '') || <i className="text-slate-400">(chưa đặt nội dung)</i>}
+                      <TagChips tags={d.tags} className="mr-1.5 align-middle" />{d.noiDung || (d.hoSoCu ? d.invoices[0]?.tenNguoiBan : '') || <i className="text-slate-400">(chưa đặt nội dung)</i>}
                     </div>
                     {w.length > 0 && <div className="truncate text-xs text-red-600" title={w.join('\n')}>⚠ {w[0]}{w.length > 1 && ` (+${w.length - 1})`}</div>}
                   </td>

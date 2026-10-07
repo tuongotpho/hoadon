@@ -209,3 +209,33 @@ describe('sua_nhieu_ho_so — sửa ngày hàng loạt', () => {
     expect(g.hoSo).toEqual([])
   })
 })
+
+describe('Hashtag công việc qua AI', () => {
+  it('gan_tag: xem trước không ghi; ghi thật giữ tag cũ, bỏ trùng, chuẩn hoá "#cbm" -> CBM, 1 dòng nhật ký', async () => {
+    const du = duLieu()
+    du.hoSo[0].tags = ['KHCN']
+    const { g, ghi } = noiGhi()
+    const xt = await cc.ganTag(du, ghi, { ho_so: ['a', 'b'], them: ['#cbm', 'CBM'], chi_xem_truoc: true })
+    expect(xt).toMatchObject({ daLuu: false, soHoSoDoi: 2, hoSo: [{ id: 'a', tagCu: ['KHCN'], tagMoi: ['KHCN', 'CBM'] }, { id: 'b', tagCu: [], tagMoi: ['CBM'] }] })
+    expect(g.hoSo).toEqual([])
+    await cc.ganTag(du, ghi, { ho_so: ['a', 'b'], them: ['#cbm'] })
+    expect(g.hoSo.map((d) => [d.id, d.tags])).toEqual([['a', ['KHCN', 'CBM']], ['b', ['CBM']]])
+    expect(g.nhatKy).toEqual(['gan_tag: Gắn #CBM cho 2 hồ sơ: Làm việc với PC Hưng Yên; Làm việc với PC Thái Bình'])
+    await cc.ganTag(du, ghi, { ho_so: ['a'], bo: ['khcn'] })
+    expect(g.hoSo.at(-1)!.tags).toEqual(['CBM'])
+    await expect(cc.ganTag(du, ghi, { ho_so: ['a', 'khong-co'], them: ['SCL'] })).rejects.toThrow('Không có hồ sơ')
+    expect((await cc.ganTag(du, ghi, { ho_so: ['c'], them: ['CBMM'], chi_xem_truoc: true })).tagLa).toEqual(['CBMM'])
+  })
+  it('lọc + thống kê theo tag; sua_ho_so chuẩn hoá tag', async () => {
+    const du = duLieu()
+    const { ghi } = noiGhi()
+    await cc.suaHoSo(du, ghi, { id: 'a', tags: ['#khcn', ' sáng kiến ', 'KHCN'] })
+    expect(du.hoSo.find((d) => d.id === 'a')!.tags).toEqual(['KHCN', 'SANGKIEN'])
+    expect(cc.danhSachHoSo(du, { tag: '#KHCN' }).hoSo.map((d) => d.id)).toEqual(['a'])
+    expect(cc.danhSachHoSo(du, { tag: 'chưa gắn' }).soHoSo).toBe(3)
+    expect(cc.traHoaDon(du, { tag: 'sangkien' })).toMatchObject({ soHoaDon: 1, tongTien: 3_000_000 })
+    expect(cc.tongHop(du, { nam: 2026 }).theoViec.map((t) => [t.tag, t.soHoSo, t.tongTien])).toEqual([
+      ['#KHCN', 1, 3_000_000], ['#SANGKIEN', 1, 3_000_000], ['(chưa gắn)', 3, 4_100_000],
+    ])
+  })
+})

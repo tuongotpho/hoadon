@@ -11,7 +11,8 @@ import { moneyInWords } from '../src/lib/numberToWords.js'
 import { canThongTinTk, duTruOf, duTruTuDong, tongTienChuOf } from '../src/lib/rules.js'
 import { firstInvoiceDate, sapXep, statusOf, STATUS_LABEL, suggestDnttDate, suggestToTrinhDate, totalOf, waitingDays, warningsOf, XEP_MAC_DINH, type KieuXep, type StatusKey } from '../src/lib/status.js'
 import { apDungNgay, TRUONG_NGAY, type CachDat, type ThayDoiNgay } from '../src/lib/suaHangLoat.js'
-import { avgDurations, byMonth, bySeller, flattenInvoices, yearsOf } from '../src/lib/summary.js'
+import { chuanTag, KHONG_TAG, TAG_MAC_DINH } from '../src/lib/hashtag.js'
+import { avgDurations, byMonth, bySeller, byTag, coTag, flattenInvoices, yearsOf } from '../src/lib/summary.js'
 import { banDoThayThe, biLienQuan, moTaBiLienQuan, moTaLienQuan } from '../src/lib/thayThe.js'
 import type { Dossier, Invoice, Settings, ThanhPhan } from '../src/lib/types.js'
 
@@ -55,6 +56,7 @@ function tomTat(d: Dossier, s: Settings, map: ReturnType<typeof banDoThayThe>) {
     trangThaiChu: STATUS_LABEL[st],
     soNgayCho: waitingDays(d),
     hoSoCu: d.hoSoCu,
+    tags: d.tags ?? [],
     soCanhBao: warningsOf(d, s, map).length,
   }
 }
@@ -62,7 +64,7 @@ function tomTat(d: Dossier, s: Settings, map: ReturnType<typeof banDoThayThe>) {
 function khopTuKhoa(d: Dossier, tim: string) {
   const t = chuan(tim.trim())
   if (!t) return true
-  const chu = [d.noiDung, d.doiTac, d.ghiChu, d.lyDo, d.soToTrinh, d.soDntt, d.nguoiDeNghi,
+  const chu = [d.noiDung, ...(d.tags ?? []).map((x) => `#${x}`), d.doiTac, d.ghiChu, d.lyDo, d.soToTrinh, d.soDntt, d.nguoiDeNghi,
     ...d.invoices.flatMap((i) => [i.soHd, i.kyHieu, i.tenNguoiBan, i.mstNguoiBan, ...i.items.map((x) => x.ten)])]
   return chu.some((x) => x && chuan(x).includes(t))
 }
@@ -112,13 +114,14 @@ export function tongQuan(du: DuLieu) {
   }
 }
 
-export interface ThamSoDanhSach { trang_thai?: StatusKey; nam?: number; thang?: number; tim?: string; xep?: KieuXep; tang_dan?: boolean; gioi_han?: number }
+export interface ThamSoDanhSach { tag?: string; trang_thai?: StatusKey; nam?: number; thang?: number; tim?: string; xep?: KieuXep; tang_dan?: boolean; gioi_han?: number }
 
 export function danhSachHoSo(du: DuLieu, a: ThamSoDanhSach) {
   const map = banDoThayThe(du.hoSo)
   const loc = du.hoSo.filter((d) =>
     (!a.trang_thai || statusOf(d) === a.trang_thai)
     && ((!a.nam && !a.thang) || d.invoices.some((i) => trongKy(i.ngayHd, a.nam, a.thang)))
+    && (!a.tag || coTag(d, maTagLoc(a.tag)))
     && khopTuKhoa(d, a.tim ?? ''))
   const xep = sapXep(loc, { theo: a.xep ?? 'ngayHd', giam: !a.tang_dan })
   const gh = a.gioi_han ?? 50
@@ -165,7 +168,7 @@ export function xemHoSo(du: DuLieu, a: { id: string }) {
   }
 }
 
-export interface ThamSoTraHoaDon { nam?: number; thang?: number; tim?: string; trang_thai?: StatusKey; ca_bi_thay_the?: boolean; gioi_han?: number }
+export interface ThamSoTraHoaDon { tag?: string; nam?: number; thang?: number; tim?: string; trang_thai?: StatusKey; ca_bi_thay_the?: boolean; gioi_han?: number }
 
 export function traHoaDon(du: DuLieu, a: ThamSoTraHoaDon) {
   const map = banDoThayThe(du.hoSo)
@@ -173,6 +176,7 @@ export function traHoaDon(du: DuLieu, a: ThamSoTraHoaDon) {
   const dong = flattenInvoices(du.hoSo).filter(({ inv, d, status }) =>
     trongKy(inv.ngayHd, a.nam, a.thang)
     && (!a.trang_thai || status === a.trang_thai)
+    && (!a.tag || coTag(d, maTagLoc(a.tag)))
     && (a.ca_bi_thay_the || biLienQuan(inv, map)?.loai !== 'thayThe')
     && (!t || [inv.soHd, inv.kyHieu, inv.tenNguoiBan, inv.mstNguoiBan, d.noiDung, d.doiTac, ...inv.items.map((x) => x.ten)].some((x) => x && chuan(x).includes(t))))
   const gh = a.gioi_han ?? 50
@@ -204,8 +208,9 @@ export function tongHop(du: DuLieu, a: { nam?: number; top?: number }) {
       { soHd: 0, tongTien: 0, daTt: 0, choKt: 0, chuaNop: 0 }),
     theoThang: thang.filter((m) => m.soHd),
     theoNguoiBan: bySeller(trongNam).slice(0, a.top ?? 20),
+    theoViec: byTag(trongNam).map((t) => ({ ...t, tag: t.ma === KHONG_TAG ? t.ma : `#${t.ma}`, moTa: TAG_MAC_DINH.find((x) => x.ma === t.ma)?.ten })),
     soNgayTrungBinh: avgDurations(du.hoSo.filter((d) => d.invoices.some((i) => i.ngayHd.startsWith(String(nam))))),
-    ghiChu: 'daTt = kế toán đã thanh toán; choKt = đã nộp kế toán, chờ thanh toán; chuaNop = chưa nộp kế toán. soNgayTrungBinh: hdDenNop = từ ngày HĐ đến nộp kế toán, nopDenTt = từ nộp đến được thanh toán.',
+    ghiChu: 'theoViec: tiền theo hashtag công việc — hồ sơ nhiều tag tính vào mỗi tag. daTt = kế toán đã thanh toán; choKt = đã nộp kế toán, chờ thanh toán; chuaNop = chưa nộp kế toán. soNgayTrungBinh: hdDenNop = từ ngày HĐ đến nộp kế toán, nopDenTt = từ nộp đến được thanh toán.',
   }
 }
 
@@ -222,6 +227,7 @@ export interface ThamSoSuaHoSo {
   duTru?: number
   thanhPhan?: ThanhPhan[]
   hoSoCu?: boolean
+  tags?: string[]
 }
 
 function kiemNgay(ten: string, v: string) {
@@ -241,12 +247,13 @@ function apThayDoi<T extends object>(cu: T, moi: Partial<T>, cacO: readonly (key
   return { ra, doi }
 }
 
-export async function suaHoSo(du: DuLieu, ghi: NoiGhi, a: ThamSoSuaHoSo) {
+export async function suaHoSo(du: DuLieu, ghi: NoiGhi, a0: ThamSoSuaHoSo) {
+  const a = { ...a0, tags: a0.tags && chuanDsTag(a0.tags) }
   const d = timHoSo(du, a.id)
   for (const k of O_NGAY) if (a[k] !== undefined) kiemNgay(k, a[k])
   if (a.duTru !== undefined && (!Number.isFinite(a.duTru) || a.duTru < 0)) throw new LoiNguoiDung('duTru phải là số tiền ≥ 0 (0 = theo quy tắc)')
   if (a.thanhPhan?.some((t) => !t.donVi?.trim() || !(t.soNguoi >= 0))) throw new LoiNguoiDung('thanhPhan: mỗi dòng cần donVi và soNguoi ≥ 0')
-  const { ra, doi } = apThayDoi(d, a as Partial<Dossier>, [...O_CHU, ...O_NGAY, 'duTru', 'thanhPhan', 'hoSoCu'])
+  const { ra, doi } = apThayDoi(d, a as Partial<Dossier>, [...O_CHU, ...O_NGAY, 'duTru', 'thanhPhan', 'hoSoCu', 'tags'])
   if (!doi.length) return { daLuu: false, moTa: 'Không có gì thay đổi', hoSo: xemHoSo(du, { id: d.id }) }
   const moi = { ...ra, updatedAt: Date.now() }
   await ghi.luuHoSo(moi)
@@ -286,7 +293,8 @@ export interface ThamSoTaoHoSo extends Omit<ThamSoSuaHoSo, 'id'> {
  * Tạo hồ sơ mới (hoặc thêm hóa đơn vào hồ sơ có sẵn) từ XML hóa đơn điện tử và/hoặc số liệu nhập tay.
  * Hóa đơn TRÙNG (cùng số + ngày + MST người bán đã có trong kho) -> từ chối cả lần gọi, không ghi gì.
  */
-export async function taoHoSo(du: DuLieu, ghi: NoiGhi, a: ThamSoTaoHoSo) {
+export async function taoHoSo(du: DuLieu, ghi: NoiGhi, a0: ThamSoTaoHoSo) {
+  const a = { ...a0, tags: a0.tags && chuanDsTag(a0.tags) }
   const xml = a.xml ?? []
   const tay = a.hoa_don_nhap_tay ?? []
   if (!xml.length && !tay.length && !a.vao_ho_so && !a.noiDung) throw new LoiNguoiDung('Cần ít nhất 1 hóa đơn (xml hoặc hoa_don_nhap_tay), hoặc nội dung công việc để tạo hồ sơ trống')
@@ -337,7 +345,7 @@ export async function taoHoSo(du: DuLieu, ghi: NoiGhi, a: ThamSoTaoHoSo) {
   }
 
   const goc = a.vao_ho_so ? timHoSo(du, a.vao_ho_so) : emptyDossier()
-  const { ra } = apThayDoi(goc, a as Partial<Dossier>, [...O_CHU, ...O_NGAY, 'duTru', 'thanhPhan', 'hoSoCu'])
+  const { ra } = apThayDoi(goc, a as Partial<Dossier>, [...O_CHU, ...O_NGAY, 'duTru', 'thanhPhan', 'hoSoCu', 'tags'])
   const d = normalizeDossier({ ...ra, invoices: [...goc.invoices, ...moi.map((m) => m.inv)], updatedAt: Date.now() })
   for (const k of O_NGAY) kiemNgay(k, d[k])
   await ghi.luuHoSo(d)
@@ -405,6 +413,51 @@ export async function suaNhieuHoSo(du: DuLieu, ghi: NoiGhi, a: ThamSoSuaNhieu) {
   du.hoSo = du.hoSo.map((x) => doiId.get(x.id) ?? x)
   const cot = TRUONG_NGAY.filter(([k]) => td[k].kieu !== 'giu').map(([k]) => `${k}=${a[k] === '' ? '(xoá)' : a[k]}`).join(', ')
   await ghi.nhatKy('sua_nhieu_ho_so', `Sửa ngày ${seDoi.length} hồ sơ (${cot}): ${seDoi.map((x) => nhanHoSo(x.d)).join('; ')}`)
+  return { daLuu: true, ...tom }
+}
+
+// ───────────── Hashtag ─────────────
+
+/** Chuẩn hoá danh sách tag: bỏ dấu / # / khoảng trắng, viết hoa, bỏ trùng, bỏ rỗng */
+function chuanDsTag(ds: string[]): string[] {
+  return [...new Set(ds.map(chuanTag).filter(Boolean))]
+}
+
+/** Tag dùng để LỌC: "#cbm" -> "CBM"; "chưa gắn" / "(chưa gắn)" -> hồ sơ chưa có tag */
+function maTagLoc(t: string): string {
+  return /chưa\s*gắn|chua\s*gan/i.test(t) ? KHONG_TAG : chuanTag(t)
+}
+
+export interface ThamSoGanTag { ho_so: string[]; them?: string[]; bo?: string[]; chi_xem_truoc?: boolean }
+
+/**
+ * Gắn / bỏ hashtag cho NHIỀU hồ sơ một lần (tag khác của hồ sơ giữ nguyên).
+ * Một mã hồ sơ sai -> không ghi gì. chi_xem_truoc = chỉ báo sẽ đổi gì.
+ */
+export async function ganTag(du: DuLieu, ghi: NoiGhi, a: ThamSoGanTag) {
+  const them = chuanDsTag(a.them ?? [])
+  const bo = chuanDsTag(a.bo ?? [])
+  if (!them.length && !bo.length) throw new LoiNguoiDung('Cần ít nhất 1 tag trong them hoặc bo')
+  if (!a.ho_so.length) throw new LoiNguoiDung('Danh sách hồ sơ trống')
+  const ds = [...new Map(a.ho_so.map((m) => timHoSo(du, m)).map((d) => [d.id, d])).values()]
+  const kq = ds.map((d) => {
+    const cu = d.tags ?? []
+    const moi = [...cu.filter((t) => !bo.includes(t)), ...them.filter((t) => !cu.includes(t))]
+    return { d, cu, moi, doi: JSON.stringify(cu) !== JSON.stringify(moi) }
+  })
+  const seDoi = kq.filter((x) => x.doi)
+  const tom = {
+    soHoSoGui: ds.length, soHoSoDoi: seDoi.length,
+    hoSo: seDoi.map((x) => ({ id: x.d.id, hoSo: nhanHoSo(x.d), tagCu: x.cu, tagMoi: x.moi })),
+    tagLa: them.filter((t) => !TAG_MAC_DINH.some((x) => x.ma === t) && !du.hoSo.some((d) => d.tags?.includes(t))),
+  }
+  if (a.chi_xem_truoc || !seDoi.length) return { daLuu: false, xemTruoc: true, ...tom }
+  const luc = Date.now()
+  const doiId = new Map(seDoi.map((x) => [x.d.id, { ...x.d, tags: x.moi, updatedAt: luc }]))
+  for (const d of doiId.values()) await ghi.luuHoSo(d)
+  du.hoSo = du.hoSo.map((x) => doiId.get(x.id) ?? x)
+  const viec = [them.length ? `Gắn ${them.map((t) => '#' + t).join(' ')}` : '', bo.length ? `Bỏ ${bo.map((t) => '#' + t).join(' ')}` : ''].filter(Boolean).join(', ')
+  await ghi.nhatKy('gan_tag', `${viec} cho ${seDoi.length} hồ sơ: ${seDoi.map((x) => nhanHoSo(x.d)).join('; ')}`)
   return { daLuu: true, ...tom }
 }
 

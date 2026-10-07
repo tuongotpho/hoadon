@@ -13,7 +13,8 @@ const HUONG_DAN = `Máy chủ quản lý hóa đơn đỏ (hóa đơn GTGT) đi 
 - hoSoCu = hóa đơn cũ nhập vào kho: chỉ cần tiền + đã/chưa thanh toán, không bắt buộc tờ trình.
 - Quy định: không thanh toán rượu/bia (app tự dò); hóa đơn từ ngưỡng (mặc định 5 triệu) phải có số tài khoản + tên tài khoản người bán; hóa đơn ĐÃ BỊ THAY THẾ không dùng để thanh toán.
 - Bắt đầu bằng tong_quan. Số liệu chỉ lấy từ hồ sơ đã có — thiếu thì nói rõ là thiếu, KHÔNG đoán số.
-- Công cụ ghi (sua_ho_so, sua_nhieu_ho_so, sua_hoa_don, tao_ho_so, xoa_ho_so) thay đổi dữ liệu THẬT — chỉ gọi khi người dùng yêu cầu rõ. Mọi lần ghi/xoá được ghi nhật ký; người dùng xem và thu hồi quyền của máy này trên web app (Cài đặt).
+- Hashtag công việc (tags): KHCN (đề tài/kế hoạch KHCN), SANGKIEN, CBM, BTBD (bảo trì bảo dưỡng TBA 110kV), PCCC, SCL (sửa chữa lớn), MBA, ATLD, ATTT, PHANMEM, TRUYENTHONG — người dùng thêm tag mới được. Một hồ sơ có thể nhiều tag. Thống kê theo tag ở tong_hop.theoViec.
+- Công cụ ghi (sua_ho_so, sua_nhieu_ho_so, gan_tag, sua_hoa_don, tao_ho_so, xoa_ho_so) thay đổi dữ liệu THẬT — chỉ gọi khi người dùng yêu cầu rõ. Mọi lần ghi/xoá được ghi nhật ký; người dùng xem và thu hồi quyền của máy này trên web app (Cài đặt).
 - xoa_ho_so không hoàn tác được: phải hỏi người dùng, nêu đúng tên hồ sơ, được đồng ý rồi mới gửi xac_nhan.
 - In tờ trình / ĐNTT ra Word làm trên web app (https://hoadon-npsc.web.app), không làm qua đây.`
 
@@ -47,7 +48,9 @@ const oHoSo = {
   duTru: z.number().min(0).optional().describe('Số tiền dự trù trong tờ trình; 0 = theo quy tắc ngưỡng'),
   thanhPhan: z.array(z.object({ donVi: z.string(), soNguoi: z.number().int().min(0) })).optional().describe('Thành phần tham gia (thay cả danh sách)'),
   hoSoCu: z.boolean().optional().describe('true = hóa đơn cũ nhập kho (không cần tờ trình)'),
+  tags: z.array(z.string()).optional().describe('Hashtag công việc, THAY cả danh sách (vd ["KHCN"]). Chỉ thêm / bỏ vài tag thì dùng gan_tag'),
 }
+const tagLoc = z.string().optional().describe('Chỉ hồ sơ có hashtag này, vd "CBM" hoặc "#KHCN"; "chưa gắn" = hồ sơ chưa có tag')
 const oHoaDon = {
   kyHieu: z.string().optional().describe('Ký hiệu, vd 1C26TAA'),
   soHd: z.string().optional(),
@@ -90,6 +93,7 @@ export function taoMayChu(nguon: NguonMcp) {
     description: 'Lọc hồ sơ theo trạng thái, năm/tháng hóa đơn, từ khoá (nội dung, đơn vị, người bán, MST, số HĐ, tên hàng, số tờ trình…). Trả tổng tiền của toàn bộ kết quả và tối đa gioi_han dòng, mỗi dòng có id để xem / sửa.',
     inputSchema: {
       trang_thai: trangThai.optional(),
+      tag: tagLoc,
       nam: nam.optional(), thang: thang.optional(),
       tim: z.string().optional().describe('Từ khoá'),
       xep: z.enum(['ngayHd', 'tongTien', 'capNhat']).optional().describe('Mặc định ngayHd (mới nhất trên cùng)'),
@@ -112,6 +116,7 @@ export function taoMayChu(nguon: NguonMcp) {
     inputSchema: {
       nam: nam.optional(), thang: thang.optional(),
       trang_thai: trangThai.optional(),
+      tag: tagLoc,
       tim: z.string().optional().describe('Người bán, MST, số HĐ, ký hiệu, tên hàng, nội dung hồ sơ'),
       ca_bi_thay_the: z.boolean().optional().describe('true = gồm cả hóa đơn đã bị thay thế'),
       gioi_han: z.number().int().min(1).max(500).optional().describe('Mặc định 50'),
@@ -144,6 +149,18 @@ export function taoMayChu(nguon: NguonMcp) {
     },
     annotations: { ...ghiDuoc, idempotentHint: true },
   }, boc((d, a: cc.ThamSoSuaNhieu) => cc.suaNhieuHoSo(d, nguon.ghi, a)))
+
+  server.registerTool('gan_tag', {
+    title: 'Gắn / bỏ hashtag công việc',
+    description: 'Gắn hoặc bỏ hashtag công việc (#KHCN, #CBM, #SCL, #PCCC…) cho NHIỀU hồ sơ một lần; tag khác của hồ sơ giữ nguyên. Tag dùng để thống kê tiền theo loại việc (tong_hop -> theoViec). Nên gọi trước với chi_xem_truoc=true. Một mã hồ sơ sai thì không ghi gì. tagLa = tag chưa từng dùng (kiểm có gõ nhầm không).',
+    inputSchema: {
+      ho_so: z.array(z.string()).min(1).max(200).describe('Danh sách id hồ sơ (hoặc số hóa đơn)'),
+      them: z.array(z.string()).optional().describe('Tag cần gắn, vd ["CBM"]'),
+      bo: z.array(z.string()).optional().describe('Tag cần bỏ'),
+      chi_xem_truoc: z.boolean().optional().describe('true = chỉ xem sẽ đổi gì, KHÔNG ghi'),
+    },
+    annotations: { ...ghiDuoc, idempotentHint: true },
+  }, boc((d, a: cc.ThamSoGanTag) => cc.ganTag(d, nguon.ghi, a)))
 
   server.registerTool('sua_hoa_don', {
     title: 'Sửa thông tin một hóa đơn',

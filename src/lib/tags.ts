@@ -227,7 +227,7 @@ export function buildTemplateData(d: Dossier, s: Settings): Record<string, unkno
 export function knownTopLevelTags(): Set<string> {
   const dummy: Dossier = {
     id: '', noiDung: '', doiTac: '', duTru: 0, nguoiDeNghi: '', nhiemVu: '', thanhPhan: [], lyDo: '', ghiChu: '', invoices: [], soToTrinh: '', ngayToTrinh: '',
-    soDntt: '', ngayDntt: '', ngayNopKeToan: '', ngayKeToanTt: '', hinhThucTt: '', hoSoCu: false, createdAt: 0, updatedAt: 0,
+    soDntt: '', ngayDntt: '', ngayNopKeToan: '', ngayKeToanTt: '', hinhThucTt: '', hoSoCu: false, tags: [], createdAt: 0, updatedAt: 0,
   }
   const s = { hoTen: '', nguongTien: 0 } as Settings
   return new Set(Object.keys(buildTemplateData(dummy, s)))
