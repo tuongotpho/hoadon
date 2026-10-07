@@ -102,3 +102,11 @@ describe('thống kê theo hashtag', () => {
     expect(chuanTag(' #sáng kiến ')).toBe('SANGKIEN')
   })
 })
+
+describe('tag CNTT (gộp phần mềm + an toàn thông tin)', () => {
+  it('nội dung phần mềm dùng chung / an toàn thông tin / Ban CNTT -> CNTT', () => {
+    expect(goiYTag('Làm việc với NPC-IT về kế hoạch thực hiện phần mềm dùng chung năm 2026')).toEqual(['CNTT'])
+    expect(goiYTag('Kiểm tra công tác đảm bảo an toàn thông tin, an ninh mạng của NPSC')).toEqual(['CNTT'])
+    expect(goiYTag('Làm việc với Ban CNTT&CĐS')).toEqual(['CNTT'])
+  })
+})

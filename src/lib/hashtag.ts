@@ -17,8 +17,7 @@ export const TAG_MAC_DINH: TagInfo[] = [
   { ma: 'SCL', ten: 'Sửa chữa lớn' },
   { ma: 'MBA', ten: 'Thí nghiệm / sửa chữa máy biến áp' },
   { ma: 'ATLD', ten: 'An toàn lao động' },
-  { ma: 'ATTT', ten: 'An toàn thông tin, an ninh mạng' },
-  { ma: 'PHANMEM', ten: 'Phần mềm dùng chung, CNTT' },
+  { ma: 'CNTT', ten: 'Công nghệ thông tin: phần mềm, an toàn thông tin' },
   { ma: 'TRUYENTHONG', ten: 'Truyền thông, quảng bá' },
 ]
 
@@ -43,8 +42,7 @@ const QUY_TAC: [string, RegExp][] = [
   ['SCL', /\bSCL\b|sửa chữa lớn/i],
   ['MBA', /(?:sửa chữa|thí nghiệm và sửa chữa|rà soát)\s+MBA/i],
   ['ATLD', /an toàn lao động|công tác an toàn tại/i],
-  ['ATTT', /an toàn thông tin|an ninh mạng/i],
-  ['PHANMEM', /phần mềm dùng chung/i],
+  ['CNTT', /an toàn thông tin|an ninh mạng|phần mềm dùng chung|\bCNTT\b/i],
   ['TRUYENTHONG', /video|quảng bá|truyền thông/i],
 ]
 
