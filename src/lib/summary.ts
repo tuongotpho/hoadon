@@ -46,17 +46,23 @@ export function byMonth(rows: InvoiceRow[], year: number): MonthStat[] {
 }
 
 export interface SellerStat {
+  khoa: string // mã nhận diện người bán (xem khoaNguoiBan) — dùng để lọc
   ten: string
   mst: string
   soHd: number
   tongTien: number
 }
 
+/** Nhận diện người bán: theo MST; hóa đơn thiếu MST thì theo tên. Lọc và xếp hạng dùng chung hàm này. */
+export function khoaNguoiBan(inv: Pick<Invoice, 'mstNguoiBan' | 'tenNguoiBan'>): string {
+  return inv.mstNguoiBan || inv.tenNguoiBan || '(chưa rõ)'
+}
+
 export function bySeller(rows: InvoiceRow[]): SellerStat[] {
   const map = new Map<string, SellerStat>()
   for (const r of rows) {
-    const key = r.inv.mstNguoiBan || r.inv.tenNguoiBan || '(chưa rõ)'
-    const s = map.get(key) ?? { ten: r.inv.tenNguoiBan || '(chưa rõ)', mst: r.inv.mstNguoiBan, soHd: 0, tongTien: 0 }
+    const key = khoaNguoiBan(r.inv)
+    const s = map.get(key) ?? { khoa: key, ten: r.inv.tenNguoiBan || '(chưa rõ)', mst: r.inv.mstNguoiBan, soHd: 0, tongTien: 0 }
     s.soHd++
     s.tongTien += r.inv.tongTien || 0
     map.set(key, s)

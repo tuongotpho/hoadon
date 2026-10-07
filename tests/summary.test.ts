@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyDossier, emptyInvoice } from '../src/lib/model'
-import { avgDurations, byCo, byMonth, bySeller, byYear, flattenInvoices, topVaKhac } from '../src/lib/summary'
+import { avgDurations, byCo, byMonth, bySeller, byYear, flattenInvoices, khoaNguoiBan, topVaKhac } from '../src/lib/summary'
 import type { Dossier } from '../src/lib/types'
 
 function hs(ngayHd: string, tien: number, mst: string, patch: Partial<Dossier> = {}): Dossier {
@@ -64,5 +64,17 @@ describe('số liệu cho biểu đồ', () => {
     expect(r.top.map((x) => x.ten)).toEqual(['A', 'B'])
     expect(r.khac).toEqual({ soNguoi: 2, soHd: 2, tongTien: 5 })
     expect(topVaKhac(s, 10).khac).toBeNull()
+  })
+})
+
+describe('lọc theo người bán (bấm vào biểu đồ)', () => {
+  it('khoaNguoiBan: lọc ra đúng số HĐ và số tiền mà bySeller ghi cho người đó; HĐ thiếu MST thì theo tên', () => {
+    const d = (mst: string, ten: string, tien: number) => ({ ...emptyDossier(), invoices: [{ ...emptyInvoice(), ngayHd: '2026-01-02', mstNguoiBan: mst, tenNguoiBan: ten, tongTien: tien }] })
+    const rows = flattenInvoices([d('0101', 'Quán A', 5), d('0101', 'QUÁN A (đổi tên)', 7), d('', 'Hộ B', 3), d('', 'Hộ B', 4), d('0202', 'C', 1)])
+    for (const s of bySeller(rows)) {
+      const loc = rows.filter((r) => khoaNguoiBan(r.inv) === s.khoa)
+      expect([loc.length, loc.reduce((a, r) => a + r.inv.tongTien, 0)]).toEqual([s.soHd, s.tongTien])
+    }
+    expect(bySeller(rows).map((s) => [s.khoa, s.soHd])).toEqual([['0101', 2], ['Hộ B', 2], ['0202', 1]])
   })
 })

@@ -1,11 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useRef, useState } from 'react'
 import { invoicesToCsv } from '../lib/csv'
 import { fmtDate, today } from '../lib/dates'
 import { downloadBlob, useDossiers, useSettings } from '../lib/hooks'
 import { formatMoney } from '../lib/numberToWords'
 import { STATUS_COLOR, STATUS_LABEL, waitingDays, warningsOf } from '../lib/status'
 import { banDoThayThe } from '../lib/thayThe'
-import { avgDurations, byCo, byMonth, bySeller, byYear, flattenInvoices, topVaKhac, yearsOf } from '../lib/summary'
+import { avgDurations, byCo, byMonth, bySeller, byYear, flattenInvoices, khoaNguoiBan, topVaKhac, yearsOf } from '../lib/summary'
 import { BieuDoCotChong, BieuDoThanh, trieu } from './BieuDo'
 
 const money = (n: number) => (n ? formatMoney(n) : '—')
@@ -32,8 +32,12 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
   const [year, setYear] = useState<number | 'all'>(Number(today().slice(0, 4)))
   const [month, setMonth] = useState<number | 'all'>('all')
   const [q, setQ] = useState('')
+  // Lọc theo người bán: bấm vào thanh trong biểu đồ "Theo người bán" (bấm lại / ✕ để bỏ)
+  const [nguoiBan, setNguoiBan] = useState<string | null>(null)
+  const bangKeRef = useRef<HTMLDivElement>(null)
 
-  const rows = useMemo(() => {
+  // Hóa đơn của kỳ đang xem (năm / tháng / từ khoá) — CHƯA lọc người bán: dùng để xếp hạng người bán
+  const rowsKy = useMemo(() => {
     const kw = q.trim().toLowerCase()
     return allRows.filter((r) => {
       if (year !== 'all' && Number(r.inv.ngayHd.slice(0, 4)) !== year) return false
@@ -42,6 +46,16 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
       return [r.inv.soHd, r.inv.tenNguoiBan, r.inv.mstNguoiBan, r.d.noiDung].join(' ').toLowerCase().includes(kw)
     })
   }, [allRows, year, month, q])
+  const rows = useMemo(() => (nguoiBan ? rowsKy.filter((r) => khoaNguoiBan(r.inv) === nguoiBan) : rowsKy), [rowsKy, nguoiBan])
+  // biểu đồ tháng / năm cũng chỉ tính người bán đang chọn
+  const allRowsNb = useMemo(() => (nguoiBan ? allRows.filter((r) => khoaNguoiBan(r.inv) === nguoiBan) : allRows), [allRows, nguoiBan])
+  const tenNguoiBan = nguoiBan ? (allRows.find((r) => khoaNguoiBan(r.inv) === nguoiBan)?.inv.tenNguoiBan || nguoiBan) : ''
+
+  function chonNguoiBan(khoa: string) {
+    const bo = nguoiBan === khoa
+    setNguoiBan(bo ? null : khoa)
+    if (!bo) setTimeout(() => bangKeRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50)
+  }
 
   const totals = useMemo(() => {
     const t = { n: rows.length, tong: 0, daTt: 0, choKt: 0, chuaNop: 0, nChoKt: 0, nChuaNop: 0 }
@@ -60,10 +74,10 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
     return t
   }, [rows])
 
-  const months = useMemo(() => (year === 'all' ? null : byMonth(allRows, year)), [allRows, year])
-  const allSellers = useMemo(() => bySeller(rows), [rows])
+  const months = useMemo(() => (year === 'all' ? null : byMonth(allRowsNb, year)), [allRowsNb, year])
+  const allSellers = useMemo(() => bySeller(rowsKy), [rowsKy])
   const sellers = allSellers.slice(0, 10)
-  const years10 = useMemo(() => (year === 'all' ? byYear(allRows) : null), [allRows, year])
+  const years10 = useMemo(() => (year === 'all' ? byYear(allRowsNb) : null), [allRowsNb, year])
   const coHd = useMemo(() => byCo(rows, [2e6, settings.nguongTien, 10e6, 20e6].filter((v, i, a) => a.indexOf(v) === i).sort((a, b) => a - b)), [rows, settings.nguongTien])
   const durations = useMemo(() => avgDurations([...new Set(rows.map((r) => r.d))]), [rows])
 
@@ -93,6 +107,14 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
             <option value="all">Cả năm</option>
             {Array.from({ length: 12 }, (_, i) => <option key={i} value={i + 1}>Tháng {i + 1}</option>)}
           </select>
+        )}
+        {nguoiBan && (
+          <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-blue-300 bg-blue-50 py-1 pl-3 pr-1 text-sm text-blue-900">
+            <span className="truncate">Người bán: <b>{tenNguoiBan}</b></span>
+            <button className="rounded-full px-1.5 text-blue-500 hover:bg-blue-100 hover:text-blue-800" title="Bỏ lọc người bán" onClick={() => setNguoiBan(null)}>
+              ✕
+            </button>
+          </span>
         )}
       </div>
 
@@ -197,11 +219,14 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
               ds={(() => {
                 const { top, khac } = topVaKhac(allSellers, 10)
                 return [
-                  ...top.map((s) => ({ khoa: s.mst + s.ten, ten: s.ten, phu: s.mst ? `MST ${s.mst}` : undefined, giaTri: s.tongTien, ghiChu: `${s.soHd} HĐ` })),
+                  ...top.map((s) => ({ khoa: s.khoa, ten: s.ten, phu: s.mst ? `MST ${s.mst}` : undefined, giaTri: s.tongTien, ghiChu: `${s.soHd} HĐ` })),
                   ...(khac ? [{ khoa: '__khac', ten: `${khac.soNguoi} người bán khác`, giaTri: khac.tongTien, ghiChu: `${khac.soHd} HĐ`, mo: true }] : []),
                 ]
               })()}
+              chon={nguoiBan ?? undefined}
+              onChon={chonNguoiBan}
             />
+            <p className="mt-1 text-xs text-slate-400">Bấm vào một người bán để xem các hóa đơn của họ (bấm lại để bỏ lọc).</p>
             <details className="mt-2">
               <summary className="cursor-pointer text-xs text-slate-500">Xem bảng số (10 người bán nhiều nhất)</summary>
             <table className="w-full text-sm">
@@ -214,7 +239,7 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
               </thead>
               <tbody>
                 {sellers.map((s) => (
-                  <tr key={s.mst + s.ten} className="border-t border-slate-100">
+                  <tr key={s.khoa} className={`cursor-pointer border-t border-slate-100 hover:bg-blue-50/50 ${nguoiBan === s.khoa ? 'bg-blue-50' : ''}`} onClick={() => chonNguoiBan(s.khoa)}>
                     <td className="py-1">
                       {s.ten}
                       {s.mst && <span className="block text-xs text-slate-400">MST {s.mst}</span>}
@@ -250,11 +275,11 @@ export default function SummaryPage({ onOpen }: { onOpen: (id: string) => void }
         </div>
       </div>
 
-      <div className="card overflow-x-auto">
+      <div ref={bangKeRef} className="card scroll-mt-20 overflow-x-auto">
         <div className="mb-2 flex flex-wrap items-center gap-2">
-          <h3 className="font-semibold text-slate-800">Bảng kê hóa đơn ({rows.length})</h3>
+          <h3 className="font-semibold text-slate-800">Bảng kê hóa đơn ({rows.length}){nguoiBan && <span className="font-normal text-slate-500"> — {tenNguoiBan}</span>}</h3>
           <input className="inp max-w-xs" placeholder="Tìm số HĐ, người bán, MST, nội dung…" value={q} onChange={(e) => setQ(e.target.value)} />
-          <button className="btn ml-auto" onClick={() => downloadBlob(invoicesToCsv(rows), `Bang ke hoa don ${kyLabel.replace(/\//g, '-')}.csv`)}>
+          <button className="btn ml-auto" onClick={() => downloadBlob(invoicesToCsv(rows), `Bang ke hoa don ${kyLabel.replace(/\//g, '-')}${nguoiBan ? ` - ${nguoiBan}` : ''}.csv`)}>
             ⬇ Xuất Excel
           </button>
         </div>

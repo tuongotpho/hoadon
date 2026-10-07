@@ -158,23 +158,45 @@ export interface ThanhNgang {
 }
 
 /** Thanh ngang xếp hạng (người bán, cỡ hóa đơn…): 1 màu, số tiền ghi ngay cuối thanh. */
-export function BieuDoThanh({ ds, donVi = (n: number) => trieu(n) }: { ds: ThanhNgang[]; donVi?: (n: number) => string }) {
+export function BieuDoThanh({ ds, donVi = (n: number) => trieu(n), chon, onChon }: {
+  ds: ThanhNgang[]
+  donVi?: (n: number) => string
+  /** khoa của dòng đang được chọn làm bộ lọc — các dòng khác mờ đi */
+  chon?: string
+  /** có thì mỗi dòng (trừ dòng gộp "khác") là một nút lọc */
+  onChon?: (khoa: string) => void
+}) {
   const max = Math.max(...ds.map((d) => d.giaTri), 1)
   return (
-    <div className="space-y-1.5">
-      {ds.map((d) => (
-        <div key={d.khoa} className="group grid grid-cols-[minmax(0,38%)_1fr] sm:grid-cols-[minmax(0,13rem)_1fr] items-center gap-2 text-xs" title={`${d.ten}${d.phu ? ` (${d.phu})` : ''}: ${formatMoney(d.giaTri)} đ${d.ghiChu ? ` · ${d.ghiChu}` : ''}`}>
-          <div className="min-w-0 text-right">
-            <div className="truncate text-slate-700">{d.ten}</div>
-            {d.phu && <div className="truncate text-[10px] text-slate-400">{d.phu}</div>}
-          </div>
-          <div className="flex items-center gap-1.5">
-            <div className="h-3.5 rounded-r group-hover:opacity-80" style={{ width: `${Math.max((d.giaTri / max) * 82, 0.5)}%`, background: d.mo ? '#b9b8b2' : MAU.mot }} />
-            <span className="whitespace-nowrap font-medium text-slate-700">{donVi(d.giaTri)}</span>
-            {d.ghiChu && <span className="whitespace-nowrap text-slate-400">· {d.ghiChu}</span>}
-          </div>
-        </div>
-      ))}
+    <div className="space-y-1">
+      {ds.map((d) => {
+        const bam = onChon && !d.mo
+        const dangChon = chon === d.khoa
+        const tieuDe = `${d.ten}${d.phu ? ` (${d.phu})` : ''}: ${formatMoney(d.giaTri)} đ${d.ghiChu ? ` · ${d.ghiChu}` : ''}${bam ? (dangChon ? ' — bấm để bỏ lọc' : ' — bấm để lọc') : ''}`
+        const noiDung = (
+          <>
+            <div className="min-w-0 text-right">
+              <div className={`truncate ${dangChon ? 'font-semibold text-slate-900' : 'text-slate-700'}`}>{d.ten}</div>
+              {d.phu && <div className="truncate text-[10px] text-slate-400">{d.phu}</div>}
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="h-3.5 rounded-r group-hover:opacity-80" style={{ width: `${Math.max((d.giaTri / max) * 82, 0.5)}%`, background: d.mo ? '#b9b8b2' : MAU.mot }} />
+              <span className="whitespace-nowrap font-medium text-slate-700">{donVi(d.giaTri)}</span>
+              {d.ghiChu && <span className="whitespace-nowrap text-slate-400">· {d.ghiChu}</span>}
+            </div>
+          </>
+        )
+        const lop = `group grid w-full grid-cols-[minmax(0,38%)_1fr] items-center gap-2 rounded px-1 py-0.5 text-left text-xs sm:grid-cols-[minmax(0,13rem)_1fr]`
+        const mo = chon && !dangChon ? 'opacity-40' : ''
+        return bam ? (
+          <button key={d.khoa} type="button" title={tieuDe} aria-pressed={dangChon} onClick={() => onChon(d.khoa)}
+            className={`${lop} ${mo} cursor-pointer hover:bg-blue-50 ${dangChon ? 'bg-blue-50 ring-1 ring-blue-300' : ''}`}>
+            {noiDung}
+          </button>
+        ) : (
+          <div key={d.khoa} title={tieuDe} className={`${lop} ${mo}`}>{noiDung}</div>
+        )
+      })}
     </div>
   )
 }
