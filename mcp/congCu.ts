@@ -10,6 +10,7 @@ import { emptyDossier, emptyInvoice, khoaHoaDon, normalizeDossier, toAccountName
 import { moneyInWords } from '../src/lib/numberToWords.js'
 import { canThongTinTk, duTruOf, duTruTuDong, tongTienChuOf } from '../src/lib/rules.js'
 import { firstInvoiceDate, sapXep, statusOf, STATUS_LABEL, suggestDnttDate, suggestToTrinhDate, totalOf, waitingDays, warningsOf, XEP_MAC_DINH, type KieuXep, type StatusKey } from '../src/lib/status.js'
+import { apDungNgay, TRUONG_NGAY, type CachDat, type ThayDoiNgay } from '../src/lib/suaHangLoat.js'
 import { avgDurations, byMonth, bySeller, flattenInvoices, yearsOf } from '../src/lib/summary.js'
 import { banDoThayThe, biLienQuan, moTaBiLienQuan, moTaLienQuan } from '../src/lib/thayThe.js'
 import type { Dossier, Invoice, Settings, ThanhPhan } from '../src/lib/types.js'
@@ -100,7 +101,7 @@ export function tongQuan(du: DuLieu) {
     tongTien: du.hoSo.reduce((a, d) => a + totalOf(d), 0),
     theoTrangThai,
     choKeToanLau: dangXuLy
-      .filter((d) => statusOf(d) === 'choKt' && !d.hoSoCu && (waitingDays(d) ?? 0) > s.canhBaoChoKtSauNgay)
+      .filter((d) => statusOf(d) === 'choKt' && (waitingDays(d) ?? 0) > s.canhBaoChoKtSauNgay)
       .map((d) => tomTat(d, s, map)),
     canChuY: canChuY.slice(0, 30),
     soHoSoCanChuY: canChuY.length,
@@ -352,6 +353,59 @@ export async function taoHoSo(du: DuLieu, ghi: NoiGhi, a: ThamSoTaoHoSo) {
     canhBao: warningsOf(d, du.caiDat, map),
     ghiChu: 'File PDF / ảnh hóa đơn gốc: mở hồ sơ trên web app để đính kèm.',
   }
+}
+
+export type GiaTriNgay = string // "yyyy-mm-dd" | "" (xoá) | "theo_hd"
+export interface ThamSoSuaNhieu {
+  ho_so: string[]
+  ngayToTrinh?: GiaTriNgay; ngayDntt?: GiaTriNgay; ngayNopKeToan?: GiaTriNgay; ngayKeToanTt?: GiaTriNgay
+  chi_xem_truoc?: boolean
+}
+
+function cachDat(ten: string, v: GiaTriNgay | undefined): CachDat {
+  if (v === undefined) return { kieu: 'giu' }
+  if (v === '') return { kieu: 'xoa' }
+  if (v === 'theo_hd') return { kieu: 'theoHd' }
+  kiemNgay(ten, v)
+  return { kieu: 'dat', ngay: v }
+}
+
+/**
+ * Sửa ngày cho nhiều hồ sơ một lần — đúng logic nút "Sửa ngày hàng loạt" của web app (apDungNgay).
+ * Một mã hồ sơ sai -> không ghi gì cả. chi_xem_truoc = chỉ báo sẽ đổi gì, không ghi.
+ */
+export async function suaNhieuHoSo(du: DuLieu, ghi: NoiGhi, a: ThamSoSuaNhieu) {
+  const td: ThayDoiNgay = {
+    ngayToTrinh: cachDat('ngayToTrinh', a.ngayToTrinh),
+    ngayDntt: cachDat('ngayDntt', a.ngayDntt),
+    ngayNopKeToan: cachDat('ngayNopKeToan', a.ngayNopKeToan),
+    ngayKeToanTt: cachDat('ngayKeToanTt', a.ngayKeToanTt),
+  }
+  if (TRUONG_NGAY.every(([k]) => td[k].kieu === 'giu')) throw new LoiNguoiDung('Chưa có ngày nào cần đổi (ngayToTrinh / ngayDntt / ngayNopKeToan / ngayKeToanTt)')
+  if (!a.ho_so.length) throw new LoiNguoiDung('Danh sách hồ sơ trống')
+
+  const ds = [...new Map(a.ho_so.map((m) => timHoSo(du, m)).map((d) => [d.id, d])).values()] // tìm hết trước, sai 1 mã là dừng
+  const kq = ds.map((d) => {
+    const moi = apDungNgay(d, td, du.caiDat)
+    const doi = TRUONG_NGAY.filter(([k]) => moi[k] !== d[k]).map(([k]) => `${k}: "${d[k]}" -> "${moi[k]}"`)
+    return { d, moi, doi }
+  })
+  const seDoi = kq.filter((x) => x.doi.length)
+  const map = banDoThayThe(du.hoSo)
+  const bang = seDoi.map(({ d, moi, doi }) => ({
+    id: d.id, hoSo: nhanHoSo(d), thayDoi: doi, trangThaiMoi: STATUS_LABEL[statusOf(moi)],
+    ngayNguoc: warningsOf(moi, du.caiDat, map).filter((w) => /TRƯỚC|SAU ngày/.test(w)),
+  }))
+  const tom = { soHoSoGui: ds.length, soHoSoDoi: seDoi.length, khongDoi: kq.filter((x) => !x.doi.length).map((x) => nhanHoSo(x.d)), hoSo: bang }
+  if (a.chi_xem_truoc || !seDoi.length) return { daLuu: false, xemTruoc: true, ...tom }
+
+  const luc = Date.now()
+  for (const { moi } of seDoi) await ghi.luuHoSo({ ...moi, updatedAt: luc })
+  const doiId = new Map(seDoi.map((x) => [x.d.id, { ...x.moi, updatedAt: luc }]))
+  du.hoSo = du.hoSo.map((x) => doiId.get(x.id) ?? x)
+  const cot = TRUONG_NGAY.filter(([k]) => td[k].kieu !== 'giu').map(([k]) => `${k}=${a[k] === '' ? '(xoá)' : a[k]}`).join(', ')
+  await ghi.nhatKy('sua_nhieu_ho_so', `Sửa ngày ${seDoi.length} hồ sơ (${cot}): ${seDoi.map((x) => nhanHoSo(x.d)).join('; ')}`)
+  return { daLuu: true, ...tom }
 }
 
 /** Tên để người dùng nhận ra hồ sơ — cũng là chuỗi xác nhận khi xoá */

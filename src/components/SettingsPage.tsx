@@ -208,6 +208,7 @@ export default function SettingsPage() {
 // Máy chủ MCP chạy trên Vercel (Firebase Hosting không chạy được máy chủ) — mcp/web.ts, api/mcp.ts
 const DIA_CHI_MCP = 'https://hoadon-npsc.vercel.app/mcp'
 const LENH_MCP = `claude mcp add --transport http hoadon ${DIA_CHI_MCP}`
+const JSON_MCP = JSON.stringify({ mcpServers: { hoadon: { type: 'http', url: DIA_CHI_MCP } } })
 const gio = (ms: number) => (ms ? new Date(ms).toLocaleString('vi-VN', { hour: '2-digit', minute: '2-digit', day: '2-digit', month: '2-digit', year: 'numeric' }) : '')
 
 /** AI (Claude Code, Claude Desktop, claude.ai…) kết nối vào hồ sơ qua MCP: lệnh kết nối, máy đang có quyền, nhật ký AI ghi/xoá */
@@ -215,7 +216,7 @@ function KetNoiAI() {
   const [phien, setPhien] = useState<PhienAI[] | null>(null)
   const [nhatKy, setNhatKy] = useState<DongNhatKyAI[]>([])
   const [loi, setLoi] = useState('')
-  const [daChep, setDaChep] = useState(false)
+  const [daChep, setDaChep] = useState<'' | 'json' | 'lenh'>('')
   const tai = () => {
     store.listPhienAI().then(setPhien).catch((e) => setLoi((e as Error).message))
     store.listNhatKyAI(15).then(setNhatKy).catch(() => undefined)
@@ -240,19 +241,29 @@ function KetNoiAI() {
         <i>"đánh dấu hồ sơ HĐ 45 đã nộp kế toán hôm nay"</i>. AI dùng đúng cách tính của app và làm bằng quyền tài khoản Google của anh — chỉ thấy
         hồ sơ của anh.
       </p>
-      <div>
-        <p className="text-xs text-slate-500">Gõ một lần trong PowerShell trên máy cần dùng (lần đầu trình duyệt sẽ mở trang đăng nhập Google để cho phép):</p>
-        <button
-          className="mt-1 w-full break-all rounded-lg bg-slate-100 px-3 py-2 text-left font-mono text-xs hover:bg-slate-200"
-          title="Bấm để chép"
-          onClick={() => void navigator.clipboard?.writeText(LENH_MCP).then(() => setDaChep(true))}
-        >
-          {LENH_MCP}
-        </button>
-        <p className="mt-1 text-xs text-slate-500">
-          {daChep ? <span className="text-emerald-700">✓ Đã chép lệnh. </span> : null}
-          Claude Desktop / claude.ai: thêm "custom connector" với địa chỉ <span className="font-mono">{DIA_CHI_MCP}</span>
+      <div className="space-y-2 text-xs text-slate-600">
+        <p>
+          <b>Claude Code trong app Claude (desktop):</b> dán đoạn dưới vào file <span className="font-mono">.mcp.json</span> ở thư mục dự án (hoặc nhờ
+          Claude thêm giúp), mở phiên mới, gõ <span className="font-mono">/mcp</span> trong ô chat → chọn <b>hoadon</b> → <b>Authenticate</b> → đăng nhập
+          Google để cho phép.
         </p>
+        <button
+          className="w-full break-all rounded-lg bg-slate-100 px-3 py-2 text-left font-mono text-xs hover:bg-slate-200"
+          title="Bấm để chép"
+          onClick={() => void navigator.clipboard?.writeText(JSON_MCP).then(() => setDaChep('json'))}
+        >
+          {JSON_MCP}
+        </button>
+        <p>
+          <b>Claude Code dòng lệnh</b> (máy có lệnh <span className="font-mono">claude</span>):{' '}
+          <button className="break-all rounded bg-slate-100 px-1.5 py-0.5 font-mono hover:bg-slate-200" title="Bấm để chép" onClick={() => void navigator.clipboard?.writeText(LENH_MCP).then(() => setDaChep('lenh'))}>
+            {LENH_MCP}
+          </button>
+        </p>
+        <p>
+          <b>claude.ai / Claude Desktop (chat):</b> Cài đặt → Connectors → thêm "custom connector" với địa chỉ <span className="font-mono">{DIA_CHI_MCP}</span>
+        </p>
+        {daChep && <p className="text-emerald-700">✓ Đã chép {daChep === 'json' ? 'đoạn cấu hình' : 'lệnh'}.</p>}
       </div>
       {loi && <p className="text-xs text-red-700">⚠️ {loi}</p>}
       <div className="grid gap-4 md:grid-cols-2">

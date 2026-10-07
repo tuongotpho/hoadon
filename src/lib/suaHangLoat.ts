@@ -1,5 +1,5 @@
-import { firstInvoiceDate, suggestToTrinhDate, warningsOf } from './status'
-import type { Dossier, Settings } from './types'
+import { firstInvoiceDate, suggestToTrinhDate, warningsOf } from './status.js'
+import type { Dossier, Settings } from './types.js'
 
 /** Sửa ngày hàng loạt cho nhiều hồ sơ đã chọn. */
 export type CachDat =

@@ -13,7 +13,7 @@ const HUONG_DAN = `Máy chủ quản lý hóa đơn đỏ (hóa đơn GTGT) đi 
 - hoSoCu = hóa đơn cũ nhập vào kho: chỉ cần tiền + đã/chưa thanh toán, không bắt buộc tờ trình.
 - Quy định: không thanh toán rượu/bia (app tự dò); hóa đơn từ ngưỡng (mặc định 5 triệu) phải có số tài khoản + tên tài khoản người bán; hóa đơn ĐÃ BỊ THAY THẾ không dùng để thanh toán.
 - Bắt đầu bằng tong_quan. Số liệu chỉ lấy từ hồ sơ đã có — thiếu thì nói rõ là thiếu, KHÔNG đoán số.
-- Công cụ ghi (sua_ho_so, sua_hoa_don, tao_ho_so, xoa_ho_so) thay đổi dữ liệu THẬT — chỉ gọi khi người dùng yêu cầu rõ. Mọi lần ghi/xoá được ghi nhật ký; người dùng xem và thu hồi quyền của máy này trên web app (Cài đặt).
+- Công cụ ghi (sua_ho_so, sua_nhieu_ho_so, sua_hoa_don, tao_ho_so, xoa_ho_so) thay đổi dữ liệu THẬT — chỉ gọi khi người dùng yêu cầu rõ. Mọi lần ghi/xoá được ghi nhật ký; người dùng xem và thu hồi quyền của máy này trên web app (Cài đặt).
 - xoa_ho_so không hoàn tác được: phải hỏi người dùng, nêu đúng tên hồ sơ, được đồng ý rồi mới gửi xac_nhan.
 - In tờ trình / ĐNTT ra Word làm trên web app (https://hoadon-npsc.web.app), không làm qua đây.`
 
@@ -132,6 +132,18 @@ export function taoMayChu(nguon: NguonMcp) {
     inputSchema: { id: z.string().describe('id hồ sơ hoặc số hóa đơn'), ...oHoSo },
     annotations: { ...ghiDuoc, idempotentHint: true },
   }, boc((d, a: cc.ThamSoSuaHoSo) => cc.suaHoSo(d, nguon.ghi, a)))
+
+  const ngayLoat = z.string().optional().describe('"yyyy-mm-dd" = đặt cùng một ngày cho tất cả; "theo_hd" = theo ngày hóa đơn của TỪNG hồ sơ (tờ trình thì lùi theo Cài đặt); "" = xoá ngày; bỏ trống = giữ nguyên')
+  server.registerTool('sua_nhieu_ho_so', {
+    title: 'Sửa ngày hàng loạt',
+    description: 'Đặt mốc ngày cho NHIỀU hồ sơ một lần — như nút "Sửa ngày hàng loạt" trên web app. Vd "kế toán đã trả 5 hồ sơ này hôm nay" = ngayKeToanTt. Nên gọi trước với chi_xem_truoc=true để báo người dùng hồ sơ nào đổi gì (và hồ sơ nào bị ngày ngược), họ đồng ý rồi mới gọi lại để ghi. Một mã hồ sơ sai thì không ghi gì.',
+    inputSchema: {
+      ho_so: z.array(z.string()).min(1).max(200).describe('Danh sách id hồ sơ (hoặc số hóa đơn)'),
+      ngayToTrinh: ngayLoat, ngayDntt: ngayLoat, ngayNopKeToan: ngayLoat, ngayKeToanTt: ngayLoat,
+      chi_xem_truoc: z.boolean().optional().describe('true = chỉ xem sẽ đổi gì, KHÔNG ghi'),
+    },
+    annotations: { ...ghiDuoc, idempotentHint: true },
+  }, boc((d, a: cc.ThamSoSuaNhieu) => cc.suaNhieuHoSo(d, nguon.ghi, a)))
 
   server.registerTool('sua_hoa_don', {
     title: 'Sửa thông tin một hóa đơn',

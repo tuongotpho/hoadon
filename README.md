@@ -28,14 +28,18 @@ Muốn dùng mẫu khác: trang **Mẫu in** → up .docx có các ô `{tong_tie
 Cài đặt → **Tải bản sao lưu (.zip)**: toàn bộ hồ sơ + file + mẫu, nạp lại được vào tài khoản bất kỳ.
 
 ## Kết nối AI (MCP) — hỏi Claude / Codex về hồ sơ
-Cùng cách làm với app khai thuế. Gõ một lần trên máy cần dùng (PowerShell):
-```
-claude mcp add --transport http hoadon https://hoadon-npsc.vercel.app/mcp
-```
-Lần đầu dùng, trình duyệt mở trang **"Cho phép AI truy cập hồ sơ hóa đơn"** → đăng nhập Google (đúng tài khoản dùng app) → xong. Claude Desktop / claude.ai: thêm "custom connector" cùng địa chỉ. Lệnh này cũng có ở trang Cài đặt (bấm để chép).
+Cùng cách làm với app khai thuế. Địa chỉ máy chủ: `https://hoadon-npsc.vercel.app/mcp`.
+- **Claude Code trong app Claude (desktop)** — máy không có lệnh `claude`: thêm vào `.mcp.json` (thư mục dự án) rồi mở phiên mới, gõ `/mcp` trong ô chat → `hoadon` → **Authenticate**:
+  ```json
+  { "mcpServers": { "hoadon": { "type": "http", "url": "https://hoadon-npsc.vercel.app/mcp" } } }
+  ```
+- **Claude Code dòng lệnh:** `claude mcp add --transport http hoadon https://hoadon-npsc.vercel.app/mcp`
+- **claude.ai / Claude Desktop (chat):** thêm "custom connector" cùng địa chỉ.
+
+Bước Authenticate mở trang **"Cho phép AI truy cập hồ sơ hóa đơn"** → đăng nhập Google (đúng tài khoản dùng app) → xong. Hướng dẫn này cũng có ở trang Cài đặt (bấm để chép).
 - AI làm việc **bằng quyền của chính tài khoản Google đó** — luật phân quyền Firebase vẫn canh cửa. Máy chủ không có chìa khoá tổng.
 - Đọc: `tong_quan`, `danh_sach_ho_so`, `xem_ho_so`, `tra_hoa_don`, `tong_hop` — dùng đúng hàm tính của app (trạng thái, cảnh báo, dự trù, hóa đơn bị thay thế, rượu/bia).
-- Ghi: `sua_ho_so` (mốc ngày, số tờ trình/ĐNTT…), `sua_hoa_don` (tài khoản người bán…), `tao_ho_so` (từ XML hoặc số liệu nhập tay; hóa đơn trùng bị chặn). `xoa_ho_so` phải gửi đúng tên hồ sơ làm xác nhận.
+- Ghi: `sua_ho_so` (mốc ngày, số tờ trình/ĐNTT…), `sua_nhieu_ho_so` (đặt ngày cho nhiều hồ sơ một lần, có xem trước), `sua_hoa_don` (tài khoản người bán…), `tao_ho_so` (từ XML hoặc số liệu nhập tay; hóa đơn trùng bị chặn). `xoa_ho_so` phải gửi đúng tên hồ sơ làm xác nhận.
 - Mỗi máy là một **phiên** — xem và **Thu hồi** ở trang Cài đặt; ở đó cũng có nhật ký mọi lần AI sửa / xoá.
 - Máy chủ chạy trên **Vercel** (`api/mcp.ts` → `mcp/web.ts`), vì Firebase Hosting không chạy được máy chủ. Cần biến môi trường bí mật `HOADON_MCP_KHOA` (≥ 32 ký tự) trên Vercel. Đổi khoá = mọi máy phải kết nối lại.
 - Code trong `mcp/` dùng chung `src/lib` → import trong các file đó phải có đuôi `.js` (Vercel chạy Node ESM, thiếu đuôi là sập).

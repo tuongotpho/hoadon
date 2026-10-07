@@ -95,7 +95,7 @@ describe.skipIf(!ON)('Máy chủ MCP ↔ dữ liệu web app (Firebase giả l�
     ve = await ketNoi('Máy cơ quan')
     c = await moClient(ve.access_token)
     const ten = (await c.listTools()).tools.map((t) => t.name).sort()
-    expect(ten).toEqual(['danh_sach_ho_so', 'sua_ho_so', 'sua_hoa_don', 'tao_ho_so', 'tong_hop', 'tong_quan', 'tra_hoa_don', 'xem_ho_so', 'xoa_ho_so'])
+    expect(ten).toEqual(['danh_sach_ho_so', 'sua_ho_so', 'sua_hoa_don', 'sua_nhieu_ho_so', 'tao_ho_so', 'tong_hop', 'tong_quan', 'tra_hoa_don', 'xem_ho_so', 'xoa_ho_so'])
     expect((await c.listTools()).tools.find((t) => t.name === 'xoa_ho_so')!.annotations?.destructiveHint).toBe(true)
     expect((await store.listPhienAI()).map((p) => p.tenMay)).toEqual(['Máy cơ quan']) // ô Kết nối AI ở trang Cài đặt
   })

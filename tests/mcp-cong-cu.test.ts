@@ -4,7 +4,9 @@
 import { readFileSync } from 'node:fs'
 import { describe, expect, it } from 'vitest'
 import * as cc from '../mcp/congCu'
+import { toIso } from '../src/lib/dates'
 import { emptyDossier, emptyInvoice } from '../src/lib/model'
+import { waitingDays, warningsOf } from '../src/lib/status'
 import { DEFAULT_SETTINGS, type Dossier, type Invoice } from '../src/lib/types'
 
 const XML = readFileSync(new URL('./fixtures/hoa-don-tt78.xml', import.meta.url), 'utf8')
@@ -149,5 +151,61 @@ describe('Công cụ ghi', () => {
     expect(g.xoa).toEqual(['c'])
     expect(g.nhatKy[0]).toContain('XOÁ hồ sơ "Hội nghị CBM"')
     expect(du.hoSo.map((d) => d.id)).not.toContain('c')
+  })
+})
+
+const truoc = (n: number) => toIso(new Date(Date.now() - n * 86400000))
+
+describe('Chờ kế toán quá lâu — cả hóa đơn cũ nhập kho', () => {
+  const cu = (o: Partial<Dossier>) => hs({ hoSoCu: true, invoices: [hd({ soHd: '7', ngayHd: truoc(60), tongTien: 9_000_000 })], ...o })
+  it('nộp kế toán quá 15 ngày -> cảnh báo + vào danh sách chờ lâu', () => {
+    const d = cu({ id: 'x', ngayNopKeToan: truoc(20) })
+    expect(warningsOf(d, DEFAULT_SETTINGS)).toEqual(['Đã nộp kế toán 20 ngày, chưa được thanh toán'])
+    expect(cc.tongQuan({ ...duLieu(), hoSo: [d] }).choKeToanLau.map((x) => x.id)).toEqual(['x'])
+  })
+  it('chưa ghi ngày nộp -> tính từ ngày hóa đơn, nói rõ', () => {
+    expect(warningsOf(cu({}), DEFAULT_SETTINGS)).toEqual(['Hóa đơn đã 60 ngày chưa được thanh toán (chưa ghi ngày nộp kế toán)'])
+    expect(waitingDays(cu({}))).toBe(60)
+  })
+  it('mới nộp 9 ngày, hoặc đã thanh toán -> không cảnh báo', () => {
+    expect(warningsOf(cu({ ngayNopKeToan: truoc(9) }), DEFAULT_SETTINGS)).toEqual([])
+    expect(warningsOf(cu({ ngayKeToanTt: truoc(1) }), DEFAULT_SETTINGS)).toEqual([])
+  })
+})
+
+describe('sua_nhieu_ho_so — sửa ngày hàng loạt', () => {
+  it('xem trước: báo đổi gì, KHÔNG ghi', async () => {
+    const du = duLieu()
+    const { g, ghi } = noiGhi()
+    const r = await cc.suaNhieuHoSo(du, ghi, { ho_so: ['b', '13'], ngayKeToanTt: '2026-04-20', chi_xem_truoc: true })
+    expect(r).toMatchObject({ daLuu: false, xemTruoc: true, soHoSoGui: 2, soHoSoDoi: 2 })
+    expect(r.hoSo.find((x) => x.id === 'b')).toMatchObject({ trangThaiMoi: 'Đã thanh toán', thayDoi: ['ngayKeToanTt: "" -> "2026-04-20"'] })
+    expect(g.hoSo).toEqual([])
+    expect(g.nhatKy).toEqual([])
+  })
+  it('ghi thật: chỉ ghi hồ sơ thực sự đổi, 1 dòng nhật ký; báo ngày ngược', async () => {
+    const du = duLieu()
+    const { g, ghi } = noiGhi()
+    // 'a' đã có ngày thanh toán 20/03 -> đặt lại đúng ngày đó thì không đổi; 'c' chưa nộp kế toán mà có ngày TT 01/04 trước HĐ 10/04
+    const r = await cc.suaNhieuHoSo(du, ghi, { ho_so: ['a', 'b', 'c'], ngayKeToanTt: '2026-03-20' })
+    expect(r).toMatchObject({ daLuu: true, soHoSoDoi: 2, khongDoi: ['Làm việc với PC Hưng Yên'] })
+    expect(g.hoSo.map((d) => [d.id, d.ngayKeToanTt])).toEqual([['b', '2026-03-20'], ['c', '2026-03-20']])
+    expect(r.hoSo.find((x) => x.id === 'b')!.ngayNguoc).toEqual(['Ngày kế toán thanh toán TRƯỚC ngày nộp'])
+    expect(g.nhatKy).toHaveLength(1)
+    expect(g.nhatKy[0]).toContain('Sửa ngày 2 hồ sơ (ngayKeToanTt=2026-03-20)')
+  })
+  it('"theo_hd" lấy ngày hóa đơn của từng hồ sơ; "" xoá ngày', async () => {
+    const du = duLieu()
+    const { g, ghi } = noiGhi()
+    await cc.suaNhieuHoSo(du, ghi, { ho_so: ['c', 'd'], ngayDntt: 'theo_hd', ngayToTrinh: '' })
+    expect(g.hoSo.map((d) => [d.id, d.ngayDntt])).toEqual([['c', '2026-04-10'], ['d', '2026-04-12']])
+  })
+  it('một mã sai / ngày sai định dạng / không có ngày nào -> từ chối, không ghi gì', async () => {
+    const du = duLieu()
+    const { g, ghi } = noiGhi()
+    await expect(cc.suaNhieuHoSo(du, ghi, { ho_so: ['b', 'khong-co'], ngayKeToanTt: '2026-04-20' })).rejects.toThrow('Không có hồ sơ')
+    await expect(cc.suaNhieuHoSo(du, ghi, { ho_so: ['b'], ngayKeToanTt: '20/04/2026' })).rejects.toThrow('yyyy-mm-dd')
+    await expect(cc.suaNhieuHoSo(du, ghi, { ho_so: ['b'] })).rejects.toThrow('Chưa có ngày nào')
+    expect(g.hoSo).toEqual([])
   })
 })

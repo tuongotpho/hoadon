@@ -87,7 +87,7 @@ function canhBaoRieng(d: Dossier, s: Settings): string[] {
       if (!i.tongTien) w.push(`HĐ ${i.soHd || '?'}: chưa có tổng tiền`)
       if (!chuKhopSo(i)) w.push(`HĐ ${i.soHd || '?'}: số tiền bằng chữ trên hóa đơn KHÔNG khớp tổng tiền`)
     }
-    return [...w, ...ngayNguoc(d)]
+    return [...w, ...ngayNguoc(d), ...choKtQuaLau(d, s)]
   }
   w.push(...ngayNguoc(d))
   const cam = timHangCam(d.invoices, s.tuKhoaCam)
@@ -105,10 +105,7 @@ function canhBaoRieng(d: Dossier, s: Settings): string[] {
   for (const i of d.invoices) {
     if (!chuKhopSo(i)) w.push(`HĐ ${i.soHd || '?'}: số tiền bằng chữ trên hóa đơn KHÔNG khớp tổng tiền`)
   }
-  if (statusOf(d) === 'choKt') {
-    const days = daysBetween(d.ngayNopKeToan, today()) ?? 0
-    if (days > s.canhBaoChoKtSauNgay) w.push(`Đã nộp kế toán ${days} ngày, chưa được thanh toán`)
-  }
+  w.push(...choKtQuaLau(d, s))
   for (const i of d.invoices) {
     const diff = Math.abs(i.tienTruocThue + i.tienThue - i.tongTien)
     if (i.tongTien && (i.tienTruocThue || i.tienThue) && diff > 1) {
@@ -118,11 +115,20 @@ function canhBaoRieng(d: Dossier, s: Settings): string[] {
   return w
 }
 
+/** Chờ kế toán thanh toán quá số ngày trong Cài đặt — áp cho cả hóa đơn cũ nhập kho. */
+function choKtQuaLau(d: Dossier, s: Settings): string[] {
+  if (statusOf(d) !== 'choKt') return []
+  const days = waitingDays(d)
+  if (days == null || days <= s.canhBaoChoKtSauNgay) return []
+  return [d.ngayNopKeToan ? `Đã nộp kế toán ${days} ngày, chưa được thanh toán` : `Hóa đơn đã ${days} ngày chưa được thanh toán (chưa ghi ngày nộp kế toán)`]
+}
+
 /** Số ngày đang chờ ở bước hiện tại (để biết hồ sơ nào kẹt lâu). */
 export function waitingDays(d: Dossier): number | null {
   const st = statusOf(d)
   const t = today()
-  if (st === 'choKt') return daysBetween(d.ngayNopKeToan, t)
+  // hóa đơn cũ nhập kho chưa ghi ngày nộp kế toán -> tính từ ngày hóa đơn
+  if (st === 'choKt') return daysBetween(d.ngayNopKeToan || (d.hoSoCu ? firstInvoiceDate(d) : ''), t)
   if (st === 'choNop') return daysBetween(d.ngayDntt, t)
   if (st === 'choLamHs') return daysBetween(firstInvoiceDate(d), t)
   return null
